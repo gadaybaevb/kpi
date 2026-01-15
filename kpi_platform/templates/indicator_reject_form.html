@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">Отклонение показателя: {{ object.name }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <p>Укажите причину, чтобы сотрудник мог исправить данные:</p>
+                    {{ form.rejection_reason }}
+                    <div class="d-flex justify-content-between mt-3">
+                        <a href="{% url 'hr_review_list' %}" class="btn btn-light">Назад</a>
+                        <button type="submit" class="btn btn-danger">Отклонить и отправить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

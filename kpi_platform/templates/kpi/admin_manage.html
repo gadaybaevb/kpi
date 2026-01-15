@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-0">Управление KPI</h2>
+        <p class="text-muted">Создание шаблонов и управление версиями</p>
+    </div>
+
+    <div class="d-flex gap-2">
+        <form action="{% url 'generate_next_month' %}" method="post" onsubmit="return confirm('Сгенерировать KPI для всех сотрудников на следующий месяц на основе шаблонов?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger shadow-sm">
+                <i class="bi bi-calendar-plus"></i> Генерировать период
+            </button>
+        </form>
+
+        <a href="{% url 'kpi_create' %}" class="btn btn-success shadow-sm">
+            <i class="bi bi-plus-lg"></i> Новый KPI
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th class="ps-4" style="width: 50px;">№</th>
+                    <th>Название</th>
+                    <th>Цель</th>
+                    <th>Версия</th>
+                    <th>Период</th> <th>Статус</th>
+                    <th class="text-end pe-4">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kpi in all_kpis %}
+                <tr class="{% if not kpi.is_active %}table-light text-muted{% endif %}">
+                    <td class="ps-4 text-muted small">
+                        {{ page_obj.start_index|add:forloop.counter0 }}
+                    </td>
+                    <td>
+                        <a href="{% url 'kpi_indicators_detail' kpi.pk %}" class="text-brand fw-bold text-decoration-none">
+                            {{ kpi.name }}
+                        </a>
+                        {% if kpi.is_template %}
+                            <span class="badge bg-info ms-2">Шаблон</span>
+                        {% endif %}
+                        <br><small class="text-muted">Создан: {{ kpi.created_at|date:"d.m.Y" }}</small>
+                    </td>
+                    <td>{{ kpi.get_target_type_display }}</td>
+                    <td><span class="badge bg-light text-dark">v{{ kpi.version }}</span></td>
+
+                    <td class="fw-bold text-dark">
+                        {% if kpi.for_month %}
+                            {{ kpi.for_month|date:"F Y" }}
+                        {% else %}
+                            <span class="text-muted small">Не указан</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if kpi.is_active %}
+                            <span class="badge bg-success shadow-sm">Активен</span>
+                        {% else %}
+                            <span class="badge bg-secondary opacity-75">Архив</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-4">
+                        <div class="btn-group shadow-sm">
+                            {% if kpi.is_active %}
+                                <a href="{% url 'indicator_add' kpi.pk %}" class="btn btn-sm btn-outline-success" title="Добавить индикатор"><i class="bi bi-plus-circle"></i></a>
+                                <a href="{% url 'kpi_archive' kpi.pk %}" class="btn btn-sm btn-outline-warning" title="В архив/Новая версия"><i class="bi bi-arrow-repeat"></i></a>
+                            {% endif %}
+                            <a href="{% url 'kpi_delete' kpi.pk %}" class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">KPI еще не созданы. Начните с создания шаблона.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4" aria-label="Навигация по KPI">
+    <ul class="pagination justify-content-center shadow-sm" style="border-radius: 50px; overflow: hidden;">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link text-brand border-0" href="?page=1" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link text-brand border-0" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                    <span aria-hidden="true">Назад</span>
+                </a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link bg-brand-red border-0">
+                {{ page_obj.number }} / {{ paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link text-brand border-0" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                    <span aria-hidden="true">Вперед</span>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link text-brand border-0" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

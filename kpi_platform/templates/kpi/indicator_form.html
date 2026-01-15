@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h3 class="card-title mb-4">Внести данные: {{ object.name }}</h3>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Тип показателя: {{ object.get_indicator_type_display }}</label>
+                        <br>
+                        <label class="form-label">План: <strong>{{ object.plan_value }}</strong></label>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="id_fact_value" class="form-label">Фактическое значение</label>
+                        <input type="number" step="0.01" name="fact_value" class="form-control" id="id_fact_value" value="{{ object.fact_value }}" required>
+                        <div class="form-text">После сохранения статус изменится на "На проверке".</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Отправить на проверку</button>
+                    <a href="{% url 'my_kpi_list' %}" class="btn btn-secondary">Отмена</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

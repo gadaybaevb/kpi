@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Дашборд эффективности{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-7">
+        <h2 class="fw-bold mb-0">Дашборд: <span class="text-brand">{{ department_label }}</span></h2>
+        <p class="text-muted mb-0">Контроль KPI за {{ selected_month|date:"F Y" }}</p>
+    </div>
+    <div class="col-md-5">
+        <form method="get" id="periodForm" class="d-flex align-items-center gap-2 justify-content-end">
+            <label class="small fw-bold text-muted mb-0 text-nowrap">Период:</label>
+            <select name="month" class="form-select form-select-sm w-auto shadow-sm border-brand" onchange="this.form.submit()">
+                {% for month_date in available_months %}
+                    <option value="{{ month_date|date:'Y-m' }}"
+                        {% if selected_month|date:'Y-m' == month_date|date:'Y-m' %}selected{% endif %}>
+                        {{ month_date|date:"F Y" }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-5 g-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 p-4 text-center bg-white border-start border-4 border-brand">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Общая эффективность</h6>
+            <h1 class="display-4 fw-bold text-brand mb-0">{{ dept_avg|floatformat:1 }}%</h1>
+            <div class="progress mt-3" style="height: 6px;">
+                <div class="progress-bar {% if dept_avg < 80 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ dept_avg }}%"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 h-100 p-3 bg-white">
+            <h6 class="text-muted text-uppercase small fw-bold mb-2 text-center">Распределение статусов индикаторов</h6>
+            <div style="height: 120px;">
+                <canvas id="kpiStatusChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for dept in departments_data %}
+<div class="dept-section mb-5 p-4 bg-white rounded shadow-sm border">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h3 class="fw-bold mb-0 text-dark">{{ dept.info.name }}</h3>
+            <p class="text-muted mb-0 small">Штат: {{ dept.employees|length }} чел.</p>
+        </div>
+        <div class="text-end">
+            <div class="h4 fw-bold text-brand mb-0">{{ dept.avg|floatformat:1 }}%</div>
+            <small class="text-muted text-uppercase fw-bold" style="font-size: 0.6rem;">Средний балл отдела</small>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <h6 class="fw-bold mb-3 small text-uppercase text-muted">Производительность персонала</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle border-top">
+                    <thead class="table-light">
+                        <tr class="small text-muted">
+                            <th class="ps-3">Сотрудник</th>
+                            <th class="text-center">Выполнение KPI</th>
+                            <th class="text-end pe-3">Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in dept.employees %}
+                        <tr>
+                            <td class="ps-3">
+                                <div class="fw-bold text-dark">{{ emp.full_name }}</div>
+                                <div class="text-muted small">{{ emp.position }}</div>
+                            </td>
+                            <td class="text-center" style="width: 35%;">
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1 me-2" style="height: 8px; border-radius: 10px;">
+                                        <div class="progress-bar {% if emp.current_score < 70 %}bg-warning{% else %}bg-success{% endif %}"
+                                             style="width: {{ emp.current_score }}%"></div>
+                                    </div>
+                                    <span class="small fw-bold">{{ emp.current_score|floatformat:1 }}%</span>
+                                </div>
+                            </td>
+                            <td class="text-end pe-3">
+                                <a href="{% url 'employee_detail' emp.id %}" class="btn btn-sm btn-light border rounded-pill">Аналитика</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <h6 class="fw-bold mb-3 small text-uppercase text-muted">Ключевые цели отдела</h6>
+            <div class="list-group list-group-flush border rounded">
+                {% for kpi in dept.kpis %}
+                <div class="list-group-item p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="fw-bold small" style="max-width: 80%;">{{ kpi.name }}</div>
+                        <span class="badge bg-dark rounded-pill">{{ kpi.get_total_score|floatformat:0 }}%</span>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-4 text-center text-muted small italic">Цели не установлены</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('kpiStatusChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                data: {{ chart_data|safe }},
+                backgroundColor: ['#6c757d', '#ffc107', '#198754', '#dc3545'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
+            },
+            cutout: '75%'
+        }
+    });
+</script>
+
+<style>
+
+</style>
+{% endblock %}

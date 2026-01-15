@@ -1,0 +1,87 @@
+:root {
+            --brand-red: #dc3545;
+            --brand-white: #ffffff;
+        }
+        body { background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .navbar-brand { font-weight: 800; color: var(--brand-red) !important; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; }
+        .navbar-brand img { margin-right: 10px; }
+
+        .bg-brand-red { background-color: var(--brand-red) !important; color: white; }
+        .btn-brand { background-color: var(--brand-red); color: white; border: none; }
+        .btn-brand:hover { background-color: #bb2d3b; color: white; }
+        .text-brand { color: var(--brand-red) !important; }
+
+        .navbar-dark { background-color: #1a1a1a !important; border-bottom: 3px solid var(--brand-red); }
+        .dropdown-menu { border-top: 3px solid var(--brand-red); border-radius: 0 0 8px 8px; }
+        .nav-link:hover { color: var(--brand-red) !important; }
+
+        .card { border-radius: 10px; border: none; transition: transform 0.2s; }
+
+        /* 1. Градиенты */
+    .card-gradient-red { background: linear-gradient(45deg, #d32f2f, #f44336); }
+    .card-gradient-orange { background: linear-gradient(45deg, #ef6c00, #ff9800); }
+    .card-gradient-blue { background: linear-gradient(45deg, #1565c0, #2196f3); }
+
+    /* 2. Эффекты Hover для основных карточек */
+    .card-hover-effect {
+        transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+        cursor: pointer;
+    }
+    .card-hover-effect:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22) !important;
+        filter: brightness(1.1);
+    }
+
+    /* Анимация иконок при ховере */
+    .card-hover-effect:hover .icon-box {
+        animation: swing 0.5s ease;
+    }
+
+    /* 3. Эффект для ссылок внутри карточек */
+    .hover-link:hover {
+        opacity: 1 !important;
+        text-decoration: underline !important;
+        padding-left: 5px;
+        transition: all 0.2s;
+    }
+
+    /* 4. Админские карточки */
+    .card-admin-link {
+        transition: all 0.3s;
+        border: none;
+    }
+    .card-admin-link:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        background-color: #fffcfc;
+    }
+
+    /* 5. Анимации появления */
+    .animate-fade-in {
+        animation: fadeIn 0.8s ease-out;
+    }
+    .animate-step-1 { animation: fadeInUp 0.5s ease-out forwards; }
+    .animate-step-2 { animation: fadeInUp 0.7s ease-out forwards; }
+    .animate-step-3 { animation: fadeInUp 0.9s ease-out forwards; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes swing {
+        20% { transform: rotate(15deg); }
+        40% { transform: rotate(-10deg); }
+        60% { transform: rotate(5deg); }
+        80% { transform: rotate(-5deg); }
+        100% { transform: rotate(0deg); }
+    }
+
+    .text-brand { color: #dc3545; }

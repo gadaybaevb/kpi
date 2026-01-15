@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="fw-bold mb-4">Проверка показателей KPI</h2>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle shadow-sm bg-white">
+        <thead class="table-dark">
+            <tr>
+                <th>Сотрудник</th>
+                <th>Показатель</th>
+                <th>Период</th>
+                <th>План</th>
+                <th>Факт</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ind in pending_indicators %}
+            <tr>
+                <td>{{ ind.kpi.employee.get_full_name }}</td>
+                <td>
+                    <a href="#" class="text-brand fw-bold"
+                       data-bs-toggle="modal"
+                       data-bs-target="#detailsModal"
+                       data-name="{{ ind.name }}"
+                       data-qn-desc="{{ ind.desc_quantitative }}"
+                       data-ql-desc="{{ ind.desc_qualitative }}"
+                       data-qn-fact="{{ ind.fact_quantitative }}"
+                       data-ql-fact="{{ ind.fact_qualitative }}"
+                       data-weight="{{ ind.weight }}"
+                       data-period="{{ ind.kpi.get_period_label }} ({{ ind.kpi.get_period_display }})">
+                        {{ ind.name }}
+                    </a>
+                </td>
+                <td><strong>{{ ind.kpi.get_period_label }}</strong></td>
+                <td>{{ ind.plan_value }}</td>
+                <td>{{ ind.fact_quantitative }}% / {{ ind.fact_qualitative }}%</td>
+                <td>
+                    <div class="btn-group">
+                        <form action="{% url 'approve_indicator' ind.pk %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success">Одобрить</button>
+                        </form>
+                        <a href="{% url 'reject_indicator' ind.pk %}" class="btn btn-sm btn-outline-danger ms-1">Отклонить</a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4">Нет новых данных на проверку.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="modalTitle">Детали</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="text-muted small d-block">Период:</label>
+                    <span id="modalPeriod" class="fw-bold text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label class="text-muted small d-block">Вес в KPI:</label>
+                    <span id="modalWeight" class="fw-bold"></span>
+                </div>
+                <hr>
+                <div class="mb-3 p-2 bg-light rounded">
+                    <h6 class="fw-bold text-success mb-1">Количественный факт</h6>
+                    <p id="modalQnDesc" class="small text-muted"></p>
+                    <strong>Результат: <span id="modalQnFact"></span>%</strong>
+                </div>
+                <div class="mb-3 p-2 bg-light rounded">
+                    <h6 class="fw-bold text-primary mb-1">Качественный факт</h6>
+                    <p id="modalQlDesc" class="small text-muted"></p>
+                    <strong>Результат: <span id="modalQlFact"></span>%</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const detailsModal = document.getElementById('detailsModal');
+    detailsModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        document.getElementById('modalTitle').textContent = button.getAttribute('data-name');
+        document.getElementById('modalPeriod').textContent = button.getAttribute('data-period');
+        document.getElementById('modalWeight').textContent = button.getAttribute('data-weight') + '%';
+        document.getElementById('modalQnDesc').textContent = button.getAttribute('data-qn-desc');
+        document.getElementById('modalQlDesc').textContent = button.getAttribute('data-ql-desc');
+        document.getElementById('modalQnFact').textContent = button.getAttribute('data-qn-fact');
+        document.getElementById('modalQlFact').textContent = button.getAttribute('data-ql-fact');
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 animate-fade-in">
+    <div>
+        <h2 class="fw-bold mb-0">Справочник должностей</h2>
+        <p class="text-muted mb-0">Управление штатным расписанием</p>
+    </div>
+    <a href="{% url 'position_create' %}" class="btn btn-success shadow-sm rounded-pill px-4">
+        <i class="bi bi-plus-circle me-1"></i> Создать должность
+    </a>
+</div>
+
+<div class="card shadow-sm border-0 animate-fade-in">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th class="ps-4" style="width: 60px;">№</th>
+                    <th>Департамент</th>
+                    <th>Название должности</th>
+                    <th class="text-center">Занято позиций</th>
+                    <th class="text-end pe-4">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pos in positions %}
+                <tr>
+                    <td class="ps-4 text-muted small">
+                        {{ page_obj.start_index|add:forloop.counter0 }}
+                    </td>
+                    <td>
+                        {% if pos.department %}
+                            <span class="text-muted"><i class="bi bi-building me-1"></i>{{ pos.department.name }}</span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ pos.name }}</div>
+                    </td>
+
+                    <td class="text-center">
+                        <span class="badge rounded-pill bg-light text-primary border px-3">
+                            {{ pos.emp_count }} чел.
+                        </span>
+                    </td>
+                    <td class="text-end pe-4">
+                        <div class="btn-group shadow-sm">
+                            <a href="{% url 'position_edit' pos.pk %}" class="btn btn-sm btn-outline-primary" title="Изменить">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <a href="{% url 'position_delete' pos.pk %}" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-briefcase fs-1 d-block mb-2"></i>
+                        Список должностей пуст.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center shadow-sm" style="width: fit-content; margin: 0 auto; border-radius: 50px; overflow: hidden;">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link text-brand border-0 px-3" href="?page=1">&laquo;&laquo;</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link text-brand border-0 px-3" href="?page={{ page_obj.previous_page_number }}">Назад</a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link bg-brand-red border-0 px-4">
+                {{ page_obj.number }} / {{ paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link text-brand border-0 px-3" href="?page={{ page_obj.next_page_number }}">Вперед</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link text-brand border-0 px-3" href="?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .bg-brand-red { background-color: #dc3545 !important; }
+    .text-brand { color: #dc3545 !important; }
+</style>
+{% endblock %}

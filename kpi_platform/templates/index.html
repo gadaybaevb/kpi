@@ -1,0 +1,126 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row align-items-center p-5 mb-4 bg-white rounded-3 shadow-sm border-start border-danger border-5 animate-fade-in">
+    <div class="col-md-8">
+        <h1 class="display-5 fw-bold text-dark">KPI Management <span class="text-brand">Platform</span></h1>
+        <p class="fs-4 text-muted">Добро пожаловать в панель управления эффективностью.</p>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+    <div class="row g-4 mb-5">
+
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 text-white card-gradient-red card-hover-effect animate-step-1">
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="mb-2 icon-box">
+                        <i class="bi bi-person-circle fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold mb-1">
+                        {% if user.get_full_name %}
+                            {{ user.get_full_name }}
+                        {% else %}
+                            {{ user.username }}
+                        {% endif %}
+                    </h4>
+                    <div class="badge bg-white text-danger mb-3 shadow-sm" style="width: fit-content;">
+                        Роль {{ user.get_role_display }}
+                    </div>
+                    <p class="mb-0 opacity-75 small">
+                        <i class="bi bi-building me-1"></i>
+                        Департамент {{ user.department.name|default:"Корпоративный центр" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 text-white card-gradient-orange card-hover-effect animate-step-2">
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="mb-2 icon-box">
+                        <i class="bi bi-bell-fill fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold mb-1">Уведомления</h4>
+                    <div class="badge bg-white text-warning mb-3 shadow-sm" style="width: fit-content;">
+                        Новых: {{ user.unread_notifications_count }}
+                    </div>
+                    <a href="{% url 'notification_list' %}" class="text-white text-decoration-none small opacity-75 hover-link">
+                        Посмотреть все сообщения <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 text-white card-gradient-blue card-hover-effect animate-step-3">
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="mb-2 icon-box">
+                        <i class="bi bi-speedometer2 fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold mb-1">Аналитика</h4>
+                    <div class="badge bg-white text-primary mb-3 shadow-sm" style="width: fit-content;">
+                        KPI Dashboard
+                    </div>
+                    <a href="{% url 'dashboard' %}" class="text-white text-decoration-none small opacity-75 hover-link">
+                        Перейти к показателям <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div> {% if user.role == 'admin' %}
+    <div class="d-flex align-items-center mb-4 animate-fade-in">
+        <h3 class="fw-bold mb-0">Быстрое управление</h3>
+        <hr class="flex-grow-1 ms-3 opacity-25">
+    </div>
+
+    <div class="row g-4 mb-5 animate-fade-in">
+        <div class="col-md-3">
+            <a href="{% url 'admin_manage' %}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm text-center p-4 card-admin-link border-bottom border-danger border-4">
+                    <h1 class="mb-2">📊</h1>
+                    <h5 class="text-dark fw-bold">KPI Мониторинг</h5>
+                    <small class="text-muted">Все показатели и версии</small>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'user_list' %}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm text-center p-4 card-admin-link border-bottom border-danger border-4">
+                    <h1 class="mb-2">👥</h1>
+                    <h5 class="text-dark fw-bold">Сотрудники</h5>
+                    <small class="text-muted">Роли и доступы</small>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'department_list' %}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm text-center p-4 card-admin-link border-bottom border-danger border-4">
+                    <h1 class="mb-2">🏢</h1>
+                    <h5 class="text-dark fw-bold">Структура</h5>
+                    <small class="text-muted">Отделы и должности</small>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{% url 'kpi_create' %}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm text-center p-4 card-admin-link border-bottom border-success border-4">
+                    <h1 class="mb-2">➕</h1>
+                    <h5 class="text-dark fw-bold">Назначить KPI</h5>
+                    <small class="text-muted">Новая цель</small>
+                </div>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+{% else %}
+    <div class="text-center py-5 bg-white rounded shadow-sm border animate-fade-in">
+        <h2 class="text-muted mb-4">Для работы с платформой необходимо войти</h2>
+        <a href="{% url 'login' %}" class="btn btn-danger btn-lg px-5 shadow rounded-pill">Войти в систему</a>
+    </div>
+{% endif %}
+
+{% endblock %}

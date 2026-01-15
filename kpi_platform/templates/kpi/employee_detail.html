@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm border-0 mb-4 bg-dark text-white">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <div class="bg-brand-red rounded-circle d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; font-size: 2rem;">
+                        {{ target_user.username|slice:":1"|upper }}
+                    </div>
+                </div>
+                <div class="ms-4">
+                    <h2 class="mb-0 fw-bold">{{ target_user.get_full_name|default:target_user.username }}</h2>
+                    <p class="mb-0 opacity-75">
+                        <i class="bi bi-briefcase"></i> {{ target_user.position.name }} | 
+                        <i class="bi bi-building"></i> {{ target_user.department.name }}
+                    </p>
+                    <small class="opacity-50">Руководитель: {{ target_user.superior.get_full_name|default:"Не назначен" }}</small>
+                </div>
+                <div class="ms-auto text-center">
+                    <div class="h1 fw-bold mb-0 text-brand">{{ total_avg|floatformat:1 }}%</div>
+                    <small class="text-muted">Общий рейтинг</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h4 class="fw-bold mb-3">История KPI</h4>
+    <div class="row">
+        {% for kpi in employee_kpis %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-0">{{ kpi.name }}</h5>
+                            <span class="badge bg-light text-muted border small">{{ kpi.get_period_label }}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="h4 fw-bold text-dark">{{ kpi.get_total_score|floatformat:1 }}%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress-bar bg-brand" style="width: {{ kpi.get_total_score }}%"></div>
+                    </div>
+
+                    <a href="{% url 'kpi_indicators_detail' kpi.pk %}" class="btn btn-sm btn-outline-brand w-100">
+                        Просмотреть все индикаторы
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-light text-center border-dashed py-5">
+                <i class="bi bi-folder-x fs-1 text-muted"></i>
+                <p class="mt-2 text-muted">У данного сотрудника пока нет назначенных или активных KPI.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

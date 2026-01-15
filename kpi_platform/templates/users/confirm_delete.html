@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger shadow">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Подтверждение удаления</h4>
+            </div>
+            <div class="card-body text-center">
+                <p class="fs-5">Вы уверены, что хотите удалить объект:</p>
+                <h3 class="text-secondary">"{{ object }}"</h3>
+                <p class="text-muted small">Это действие может привести к потере связанных данных.</p>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-center gap-3 mt-4">
+                        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-danger">Да, удалить окончательно</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

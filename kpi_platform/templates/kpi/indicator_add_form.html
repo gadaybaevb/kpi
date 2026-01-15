@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-brand-red text-white">
+                <h4 class="mb-0">Настройка индикатора</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Название показателя</label>
+                            {{ form.name }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Вес (%)</label>
+                            {{ form.weight }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Количественные требования (Quantitative)</label>
+                        {{ form.desc_quantitative }}
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Качественные требования (Qualitative)</label>
+                        {{ form.desc_qualitative }}
+                    </div>
+
+                    <div class="bg-light p-3 rounded mb-4">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">План (100%)</label>
+                                {{ form.plan_value }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Порог Min (80%)</label>
+                                {{ form.threshold_min }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Порог Max (120%)</label>
+                                {{ form.threshold_max }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Тип расчета</label>
+                        {{ form.indicator_type }}
+                    </div>
+
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" onclick="history.back()" class="btn btn-outline-secondary">Отмена</button>
+                        <button type="submit" class="btn btn-brand px-5">Сохранить индикатор</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'admin_manage' %}" class="text-brand text-decoration-none">Все KPI</a></li>
+    <li class="breadcrumb-item active">{{ current_kpi.name }} (v{{ current_kpi.version }})</li>
+  </ol>
+</nav>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-brand-red text-white d-flex justify-content-between align-items-center py-3">
+        <h4 class="mb-0">Индикаторы: {{ current_kpi.name }}</h4>
+        <a href="{% url 'indicator_add' current_kpi.pk %}" class="btn btn-light btn-sm fw-bold">+ Добавить индикатор</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Наименование и требования</th>
+                        <th class="text-center">Вес</th>
+                        <th class="text-center">План / Пороги</th>
+                        <th class="text-center">Текущий факт (%)</th>
+                        <th class="text-center">Вклад в KPI</th>
+                        <th class="text-end pe-4">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ind in indicators %}
+                    <tr>
+                        <td class="ps-4" style="max-width: 350px;">
+                            <div class="fw-bold text-dark">{{ ind.name }}</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.85rem;">
+                                <span class="text-danger">■</span> <strong>Колич:</strong> {{ ind.desc_quantitative }}
+                            </div>
+                            <div class="small text-muted" style="font-size: 0.85rem;">
+                                <span class="text-danger">■</span> <strong>Качеств:</strong> {{ ind.desc_qualitative }}
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-dark px-3 py-2">{{ ind.weight }}%</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="fw-bold">{{ ind.plan_value }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">{{ ind.threshold_min }}% - {{ ind.threshold_max }}%</div>
+                        </td>
+                        <td class="text-center bg-light">
+                            <div class="small">КН: <strong>{{ ind.fact_quantitative }}%</strong></div>
+                            <div class="small">КЧ: <strong>{{ ind.fact_qualitative }}%</strong></div>
+                            <div class="fw-bold text-brand border-top mt-1">Итог: {{ ind.total_performance|floatformat:1 }}%</div>
+                        </td>
+                        <td class="text-center fw-bold text-dark">
+                            {{ ind.weighted_result|floatformat:1 }}%
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group">
+                                <a href="{% url 'indicator_update_fact' ind.pk %}" class="btn btn-sm btn-outline-brand" title="Внести факт">
+                                    <i class="bi bi-pencil-square"></i> Внести факт
+                                </a>
+
+                                <a href="{% url 'indicator_edit' ind.pk %}" class="btn btn-sm btn-outline-secondary" title="Редактировать настройки">
+                                    ✎
+                                </a>
+
+                                <a href="{% url 'indicator_delete' ind.pk %}" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                    ✕
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center py-5 text-muted">Индикаторы еще не добавлены</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light border-top-2">
+                    <tr class="fw-bold">
+                        <td colspan="4" class="text-end ps-4 py-3">ОБЩИЙ ПРОЦЕНТ ВЫПОЛНЕНИЯ KPI:</td>
+                        <td class="text-center text-brand fs-5 py-3">{{ current_kpi.get_total_score|floatformat:2 }}%</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

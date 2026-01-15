@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">Управление сотрудниками</h2>
+    <a href="{% url 'user_create' %}" class="btn btn-success shadow-sm">
+        <i class="bi bi-person-plus-fill me-1"></i> Добавить сотрудника
+    </a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3" style="width: 50px;">№</th>
+                    <th>ФИО</th>
+                    <th>Роль</th>
+                    <th>Департамент</th>
+                    <th class="text-end pe-3">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="ps-3 text-muted">{{ page_obj.start_index|add:forloop.counter0 }}</td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ u.get_full_name|default:u.username }}</div>
+                        <small class="text-muted">{{ u.email }}</small>
+                    </td>
+                    <td><span class="badge bg-light text-dark border">{{ u.get_role_display }}</span></td>
+                    <td>{{ u.department.name|default:"-" }}</td>
+                    <td class="text-end pe-3">
+                        <a href="{% url 'user_update' u.pk %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">Изм.</a>
+                        <a href="{% url 'user_delete' u.pk %}" class="btn btn-sm btn-outline-danger rounded-pill px-3">Удалить</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">Сотрудники не найдены.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page=1">&laquo; Первая</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Назад</a></li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Вперед</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Последняя &raquo;</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

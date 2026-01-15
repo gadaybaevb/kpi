@@ -1,0 +1,19 @@
+:root {
+            --brand-red: #dc3545;
+            --brand-white: #ffffff;
+        }
+        body { background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .navbar-brand { font-weight: 800; color: var(--brand-red) !important; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; }
+        .navbar-brand img { margin-right: 10px; }
+
+        .bg-brand-red { background-color: var(--brand-red) !important; color: white; }
+        .btn-brand { background-color: var(--brand-red); color: white; border: none; }
+        .btn-brand:hover { background-color: #bb2d3b; color: white; }
+        .text-brand { color: var(--brand-red) !important; }
+
+        .navbar-dark { background-color: #1a1a1a !important; border-bottom: 3px solid var(--brand-red); }
+        .dropdown-menu { border-top: 3px solid var(--brand-red); border-radius: 0 0 8px 8px; }
+        .nav-link:hover { color: var(--brand-red) !important; }
+
+        .card { border-radius: 10px; border: none; transition: transform 0.2s; }

@@ -8,7 +8,7 @@
     </div>
 
     <div class="d-flex gap-2">
-        <form action="{% url 'generate_next_month' %}" method="post" onsubmit="return confirm('Сгенерировать KPI для всех сотрудников на следующий месяц на основе шаблонов?');">
+        <form action="{% url 'generate_next_month' %}" method="post" onsubmit="return confirm('Сгенерировать KPI для всех сотрудников на следующий месяц?');">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger shadow-sm">
                 <i class="bi bi-calendar-plus"></i> Генерировать период
@@ -30,7 +30,8 @@
                     <th>Название</th>
                     <th>Цель</th>
                     <th>Версия</th>
-                    <th>Период</th> <th>Статус</th>
+                    <th>Период</th>
+                    <th>Статус</th>
                     <th class="text-end pe-4">Действия</th>
                 </tr>
             </thead>
@@ -51,7 +52,6 @@
                     </td>
                     <td>{{ kpi.get_target_type_display }}</td>
                     <td><span class="badge bg-light text-dark">v{{ kpi.version }}</span></td>
-
                     <td class="fw-bold text-dark">
                         {% if kpi.for_month %}
                             {{ kpi.for_month|date:"F Y" }}
@@ -59,7 +59,6 @@
                             <span class="text-muted small">Не указан</span>
                         {% endif %}
                     </td>
-
                     <td>
                         {% if kpi.is_active %}
                             <span class="badge bg-success shadow-sm">Активен</span>
@@ -70,16 +69,25 @@
                     <td class="text-end pe-4">
                         <div class="btn-group shadow-sm">
                             {% if kpi.is_active %}
-                                <a href="{% url 'indicator_add' kpi.pk %}" class="btn btn-sm btn-outline-success" title="Добавить индикатор"><i class="bi bi-plus-circle"></i></a>
-                                <a href="{% url 'kpi_archive' kpi.pk %}" class="btn btn-sm btn-outline-warning" title="В архив/Новая версия"><i class="bi bi-arrow-repeat"></i></a>
+                                <a href="{% url 'indicator_add' kpi.pk %}" class="btn btn-sm btn-outline-success" title="Добавить индикатор">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                                <a href="{% url 'kpi_update' kpi.pk %}" class="btn btn-sm btn-outline-primary" title="Редактировать параметры">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'kpi_archive' kpi.pk %}" class="btn btn-sm btn-outline-warning" title="В архив/Новая версия">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </a>
                             {% endif %}
-                            <a href="{% url 'kpi_delete' kpi.pk %}" class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></a>
+                            <a href="{% url 'kpi_delete' kpi.pk %}" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center py-5 text-muted">KPI еще не созданы. Начните с создания шаблона.</td>
+                    <td colspan="7" class="text-center py-5 text-muted">KPI еще не созданы.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -89,37 +97,15 @@
 
 {% if is_paginated %}
 <nav class="mt-4" aria-label="Навигация по KPI">
-    <ul class="pagination justify-content-center shadow-sm" style="border-radius: 50px; overflow: hidden;">
+    <ul class="pagination justify-content-center shadow-sm">
         {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link text-brand border-0" href="?page=1" aria-label="First">
-                    <span aria-hidden="true">&laquo;&laquo;</span>
-                </a>
-            </li>
-            <li class="page-item">
-                <a class="page-link text-brand border-0" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
-                    <span aria-hidden="true">Назад</span>
-                </a>
-            </li>
+            <li class="page-item"><a class="page-link text-brand" href="?page=1">&laquo;&laquo;</a></li>
+            <li class="page-item"><a class="page-link text-brand" href="?page={{ page_obj.previous_page_number }}">Назад</a></li>
         {% endif %}
-
-        <li class="page-item active">
-            <span class="page-link bg-brand-red border-0">
-                {{ page_obj.number }} / {{ paginator.num_pages }}
-            </span>
-        </li>
-
+        <li class="page-item active"><span class="page-link bg-brand-red">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
         {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link text-brand border-0" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
-                    <span aria-hidden="true">Вперед</span>
-                </a>
-            </li>
-            <li class="page-item">
-                <a class="page-link text-brand border-0" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last">
-                    <span aria-hidden="true">&raquo;&raquo;</span>
-                </a>
-            </li>
+            <li class="page-item"><a class="page-link text-brand" href="?page={{ page_obj.next_page_number }}">Вперед</a></li>
+            <li class="page-item"><a class="page-link text-brand" href="?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a></li>
         {% endif %}
     </ul>
 </nav>

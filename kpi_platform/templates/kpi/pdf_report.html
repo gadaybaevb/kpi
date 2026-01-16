@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1.5cm;
+            margin-top: 3cm;
+            @top-right { content: element(runningHeader); }
+            @bottom-right {
+                content: "Страница " counter(page) " из " counter(pages);
+                font-size: 9pt;
+            }
+        }
+        #approveBlock { position: running(runningHeader); width: 300px; font-size: 9pt; }
+        body { font-family: "Arial", sans-serif; font-size: 10pt; }
+        .title { text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #000; padding: 6px; }
+        th { background-color: #444; color: white; text-align: center; }
+        .dept-header { background-color: #e9ecef; font-weight: bold; }
+        .subtotal-row { background-color: #f8f9fa; font-weight: bold; }
+        .dept-total-row { background-color: #d1ecf1; font-weight: bold; }
+        .summary-box { border: 2px solid #0d6efd; padding: 15px; background-color: #f0f7ff; margin-bottom: 20px; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .page-break { page-break-after: always; }
+    </style>
+</head>
+<body>
+
+    <div id="approveBlock">
+        <strong>УТВЕРЖДАЮ</strong><br>
+        Генеральный директор ООО "Аркон ЛТД"<br>
+        Гадайбаева У.А.<br><br>
+        ________________ / ___________
+    </div>
+
+
+
+    {% for dept in data %}
+        <div class="title">KPI ОТЧЕТ: {{ period }} {{ year }}</div>
+    <table>
+        <thead>
+            <tr class="dept-header"><td colspan="5">ОТДЕЛ: {{ dept.name }}</td></tr>
+            <tr>
+                <th>Сотрудник</th>
+                <th>KPI</th>
+                <th>Выполнение</th>
+                <th>Бонус (сом)</th>
+                <th>Подпись</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for emp in dept.employees %}
+                {% for kpi in emp.kpis %}
+                <tr>
+                    {% if forloop.first %}
+                    <td rowspan="{{ emp.kpis|length|add:1 }}"><strong>{{ emp.full_name }}</strong></td>
+                    {% endif %}
+                    <td>{{ kpi.name }}</td>
+                    <td class="text-center">{{ kpi.perf|floatformat:1 }}%</td>
+                    <td class="text-right">{{ kpi.money|floatformat:0 }} сом</td>
+                    {% if forloop.first %}
+                    <td rowspan="{{ emp.kpis|length|add:1 }}"></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                <tr class="subtotal-row">
+                    <td class="text-right">ИТОГО ПО СОТРУДНИКУ:</td>
+                    <td class="text-center">{{ emp.avg_perf|floatformat:1 }}%</td>
+                    <td class="text-right">{{ emp.subtotal_money|floatformat:0 }} сом</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="page-break"></div>
+    {% endfor %}
+
+    <div class="title">ИТОГИ ПО КОМПАНИИ за {{ period }} {{ year }} </div>
+
+    <div class="summary-box">
+        <p><strong>Общая эффективность:</strong> {{ company_avg_perf|floatformat:2 }}%</p>
+        <p><strong>Общий фонд выплат:</strong> {{ total_company_bonus|floatformat:0 }} сом</p>
+    </div>
+
+    <div style="text-align: center;">
+        <h3>Разбивка по департаментам</h3>
+        <img src="{{ chart_url }}" style="width: 450px;">
+
+        <table style="width: 80%; margin: 20px auto;">
+            <thead>
+                <tr>
+                    <th>Департамент</th>
+                    <th>Сумма (сом)</th>
+                    <th>Доля (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summary_table %}
+                <tr>
+                    <td>{{ row.name }}</td>
+                    <td class="text-right">{{ row.amount|floatformat:0 }} сом</td>
+                    <td class="text-center">{{ row.share|floatformat:1 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

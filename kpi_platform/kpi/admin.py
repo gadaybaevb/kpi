@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import KPI, Indicator
+from .models import KPI, Indicator, KPIBonus, MonthStatus
 
 
 # Экшн для создания новой версии
@@ -29,3 +29,13 @@ class IndicatorAdmin(admin.ModelAdmin):
     list_display = ('name', 'kpi', 'weight', 'fact_quantitative', 'fact_qualitative', 'status', 'created_at')
     list_filter = ('status', 'indicator_type', 'kpi')
     search_fields = ('name',)
+
+
+@admin.register(KPIBonus)
+class KPIBonus(admin.ModelAdmin):
+    list_display = ('kpi', 'target_amount', 'threshold_min', 'threshold_max', 'final_payout', 'is_calculated')
+
+
+@admin.register(MonthStatus)
+class MonthStatus(admin.ModelAdmin):
+    list_display = ('month', 'is_closed', 'closed_by', 'closed_at')

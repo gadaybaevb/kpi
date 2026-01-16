@@ -2,42 +2,66 @@
 {% block title %}Дашборд эффективности{% endblock %}
 
 {% block content %}
+{% if is_month_closed %}
+<div class="alert alert-info border-0 shadow-sm d-flex align-items-center mb-4" style="border-left: 5px solid #0dcaf0 !important;">
+    <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+    <div>
+        <h6 class="mb-0 fw-bold">Этот период закрыт</h6>
+        <small>Все расчеты зафиксированы и не подлежат изменению.</small>
+    </div>
+    <div class="ms-auto">
+        <a href="{% url 'export_kpi_pdf' %}?month={{ selected_month|date:'Y-m' }}" class="btn btn-sm btn-dark rounded-pill shadow-sm">
+            <i class="bi bi-file-earmark-pdf"></i> Скачать PDF отчет
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <div class="row mb-4 align-items-center">
-    <div class="col-md-7">
-        <h2 class="fw-bold mb-0">Дашборд: <span class="text-brand">{{ department_label }}</span></h2>
+    <div class="col-md-6">
+        <h2 class="fw-bold mb-0">Дашборд эффективности</h2>
         <p class="text-muted mb-0">Контроль KPI за {{ selected_month|date:"F Y" }}</p>
     </div>
-    <div class="col-md-5">
-        <form method="get" id="periodForm" class="d-flex align-items-center gap-2 justify-content-end">
+    <div class="col-md-6 d-flex justify-content-end align-items-center gap-3">
+        <form method="get" id="periodForm" class="d-flex align-items-center gap-2">
             <label class="small fw-bold text-muted mb-0 text-nowrap">Период:</label>
-            <select name="month" class="form-select form-select-sm w-auto shadow-sm border-brand" onchange="this.form.submit()">
+            <select name="month" class="form-select form-select-sm w-auto shadow-sm" onchange="this.form.submit()">
                 {% for month_date in available_months %}
-                    <option value="{{ month_date|date:'Y-m' }}"
-                        {% if selected_month|date:'Y-m' == month_date|date:'Y-m' %}selected{% endif %}>
+                    <option value="{{ month_date|date:'Y-m' }}" {% if selected_month|date:'Y-m' == month_date|date:'Y-m' %}selected{% endif %}>
                         {{ month_date|date:"F Y" }}
                     </option>
                 {% endfor %}
             </select>
         </form>
+
+        {% if request.user.role in 'admin,hr' and not is_month_closed %}
+        <form method="post" action="{% url 'close_month' %}" onsubmit="return confirm('Зафиксировать выплаты за этот месяц?')">
+            {% csrf_token %}
+            <input type="hidden" name="month" value="{{ selected_month|date:'Y-m' }}">
+            <button type="submit" class="btn btn-sm btn-danger shadow-sm px-3">
+                <i class="bi bi-lock-fill"></i> Фиксировать период
+            </button>
+        </form>
+        {% endif %}
     </div>
 </div>
 
 <div class="row mb-5 g-4">
     <div class="col-md-4">
-        <div class="card shadow-sm border-0 h-100 p-4 text-center bg-white border-start border-4 border-brand">
+        <div class="card shadow-sm border-0 h-100 p-4 text-center bg-white border-start border-4 border-primary">
             <h6 class="text-muted text-uppercase small fw-bold mb-3">Общая эффективность</h6>
-            <h1 class="display-4 fw-bold text-brand mb-0">{{ dept_avg|floatformat:1 }}%</h1>
-            <div class="progress mt-3" style="height: 6px;">
-                <div class="progress-bar {% if dept_avg < 80 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ dept_avg }}%"></div>
-            </div>
+            <h1 class="display-4 fw-bold text-primary mb-0">{{ dept_avg|floatformat:1 }}%</h1>
         </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 p-4 text-center bg-white border-start border-4 border-success">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Фонд выплат</h6>
+            <h1 class="display-4 fw-bold text-success mb-0">{{ grand_total_money|floatformat:0 }} сом</h1>
+        </div>
+    </div>
+    <div class="col-md-4">
         <div class="card shadow-sm border-0 h-100 p-3 bg-white">
-            <h6 class="text-muted text-uppercase small fw-bold mb-2 text-center">Распределение статусов индикаторов</h6>
-            <div style="height: 120px;">
-                <canvas id="kpiStatusChart"></canvas>
-            </div>
+            <div style="height: 120px;"><canvas id="kpiStatusChart"></canvas></div>
         </div>
     </div>
 </div>
@@ -47,23 +71,23 @@
     <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
         <div>
             <h3 class="fw-bold mb-0 text-dark">{{ dept.info.name }}</h3>
-            <p class="text-muted mb-0 small">Штат: {{ dept.employees|length }} чел.</p>
+            <p class="text-muted mb-0 small">Штат: {{ dept.employees|length }} чел. | Бюджет: {{ dept.total_money|floatformat:0 }} сом</p>
         </div>
         <div class="text-end">
-            <div class="h4 fw-bold text-brand mb-0">{{ dept.avg|floatformat:1 }}%</div>
-            <small class="text-muted text-uppercase fw-bold" style="font-size: 0.6rem;">Средний балл отдела</small>
+            <div class="h4 fw-bold text-primary mb-0">{{ dept.avg|floatformat:1 }}%</div>
+            <small class="text-muted text-uppercase fw-bold" style="font-size: 0.6rem;">Средний балл</small>
         </div>
     </div>
 
     <div class="row g-4">
         <div class="col-lg-8">
-            <h6 class="fw-bold mb-3 small text-uppercase text-muted">Производительность персонала</h6>
             <div class="table-responsive">
-                <table class="table table-hover align-middle border-top">
+                <table class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr class="small text-muted">
                             <th class="ps-3">Сотрудник</th>
-                            <th class="text-center">Выполнение KPI</th>
+                            <th class="text-center">Выполнение</th>
+                            <th class="text-center">Целевая сумма</th> <th class="text-center">К выплате</th>
                             <th class="text-end pe-3">Действие</th>
                         </tr>
                     </thead>
@@ -74,17 +98,22 @@
                                 <div class="fw-bold text-dark">{{ emp.full_name }}</div>
                                 <div class="text-muted small">{{ emp.position }}</div>
                             </td>
-                            <td class="text-center" style="width: 35%;">
+                            <td class="text-center" style="width: 25%;">
                                 <div class="d-flex align-items-center">
-                                    <div class="progress flex-grow-1 me-2" style="height: 8px; border-radius: 10px;">
-                                        <div class="progress-bar {% if emp.current_score < 70 %}bg-warning{% else %}bg-success{% endif %}"
-                                             style="width: {{ emp.current_score }}%"></div>
+                                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                        <div class="progress-bar {% if emp.current_score < 70 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ emp.current_score }}%"></div>
                                     </div>
                                     <span class="small fw-bold">{{ emp.current_score|floatformat:1 }}%</span>
                                 </div>
                             </td>
+                            <td class="text-center">
+                                <span class="text-muted fw-bold">{{ emp.target_money|floatformat:0 }} сом</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold text-success">{{ emp.money|floatformat:0 }} сом</span>
+                            </td>
                             <td class="text-end pe-3">
-                                <a href="{% url 'employee_detail' emp.id %}" class="btn btn-sm btn-light border rounded-pill">Аналитика</a>
+                                <a href="{% url 'employee_detail' emp.id %}" class="btn btn-sm btn-light border rounded-pill px-3">Аналитика</a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -92,19 +121,18 @@
                 </table>
             </div>
         </div>
-
         <div class="col-lg-4">
-            <h6 class="fw-bold mb-3 small text-uppercase text-muted">Ключевые цели отдела</h6>
-            <div class="list-group list-group-flush border rounded">
+            <h6 class="fw-bold mb-3 small text-uppercase text-muted">Цели отдела</h6>
+            <div class="list-group list-group-flush border rounded shadow-sm">
                 {% for kpi in dept.kpis %}
                 <div class="list-group-item p-3">
                     <div class="d-flex justify-content-between align-items-start">
-                        <div class="fw-bold small" style="max-width: 80%;">{{ kpi.name }}</div>
+                        <div class="small fw-bold text-truncate" style="max-width: 150px;">{{ kpi.name }}</div>
                         <span class="badge bg-dark rounded-pill">{{ kpi.get_total_score|floatformat:0 }}%</span>
                     </div>
                 </div>
                 {% empty %}
-                <div class="p-4 text-center text-muted small italic">Цели не установлены</div>
+                <div class="p-4 text-center text-muted small italic">Нет данных</div>
                 {% endfor %}
             </div>
         </div>
@@ -118,7 +146,7 @@
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: {{ chart_labels|safe }},
+            labels: ['Черновик', 'На проверке', 'Одобрено', 'Отклонено'],
             datasets: [{
                 data: {{ chart_data|safe }},
                 backgroundColor: ['#6c757d', '#ffc107', '#198754', '#dc3545'],
@@ -128,15 +156,9 @@
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
-            },
+            plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } },
             cutout: '75%'
         }
     });
 </script>
-
-<style>
-
-</style>
 {% endblock %}

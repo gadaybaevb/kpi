@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from users.models import Position
+from users.models import Position, User
 
 
 class KPI(models.Model):
@@ -71,6 +71,12 @@ class KPI(models.Model):
     def get_total_score(self):
         return sum(ind.weighted_result for ind in self.indicators.all())  # Вместо self.indicator_set.all()
 
+    def save(self, *args, **kwargs):
+        if self.for_month:
+            # Автоматически ставим 1-е число месяца
+            self.for_month = self.for_month.replace(day=1)
+        super().save(*args, **kwargs)
+
     def get_period_label(self):
         if not self.for_month:
             return f"Версия {self.version}"
@@ -112,7 +118,7 @@ class Indicator(models.Model):
 
     # Трэшхолды (пороги)
     threshold_min = models.FloatField(default=80.0, verbose_name="Порог 80%")
-    threshold_max = models.FloatField(default=120.0, verbose_name="Порог 120%")
+    threshold_max = models.FloatField(default=125.0, verbose_name="Порог 125%")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
     fact_quantitative = models.FloatField(default=0, verbose_name="Факт Колич. (%)")
@@ -138,3 +144,26 @@ class Indicator(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.weight}%)"
+
+
+class KPIBonus(models.Model):
+    kpi = models.OneToOneField(KPI, on_delete=models.CASCADE, related_name='bonus_setup')
+    target_amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Целевая сумма")
+    threshold_min = models.FloatField(default=80.0, verbose_name="Минимальный порог (%)")
+    threshold_max = models.FloatField(default=125.0, verbose_name="Максимальный порог (%)")
+    final_payout = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Итого к выплате")
+    is_calculated = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Bonus for {self.kpi.name}"
+
+
+# models.py
+class MonthStatus(models.Model):
+    month = models.DateField(unique=True, verbose_name="Месяц")
+    is_closed = models.BooleanField(default=False, verbose_name="Статус закрытия")
+    closed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    closed_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    def __str__(self):
+        return f"{self.month.strftime('%B %Y')} - {'Закрыт' if self.is_closed else 'Открыт'}"

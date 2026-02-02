@@ -1,0 +1,69 @@
+{% extends "analytics/base.html" %}
+{% load analytics_extras %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">Консолидированная ОСВ (Обороты)</h2>
+        
+        <form method="get" class="d-flex gap-2 bg-white p-2 rounded shadow-sm border">
+            <select name="period" class="form-select border-primary" onchange="this.form.submit()">
+                <option value="">-- Выберите период --</option>
+                {% for m in available_months %}
+                    <option value="{{ m|date:'Y-m-d' }}" {% if m|date:'Y-m-d' == selected_period %}selected{% endif %}>
+                        {{ m|date:"F Y" }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    {% if matrix %}
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover table-bordered mb-0 align-middle">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th rowspan="2" class="align-middle" style="min-width: 250px;">Счет</th>
+                        {% for ent in entities %}
+                            <th colspan="2">{{ ent.name }}</th>
+                        {% endfor %}
+                        <th colspan="2" class="bg-primary">ИТОГО СЕТЬ</th>
+                    </tr>
+                    <tr>
+                        {% for ent in entities %}
+                            <th style="font-size: 0.8rem;">Дебет</th>
+                            <th style="font-size: 0.8rem;">Кредит</th>
+                        {% endfor %}
+                        <th class="bg-primary" style="font-size: 0.8rem;">Дебет</th>
+                        <th class="bg-primary" style="font-size: 0.8rem;">Кредит</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for code, data in matrix.items %}
+                    <tr>
+                        <td class="ps-3">
+                            <span class="fw-bold text-primary">{{ code }}</span><br>
+                            <small class="text-muted">{{ data.name }}</small>
+                        </td>
+                        
+                        {% for ent in entities %}
+                            {% with data.branches|dict_get:ent.id as vals %}
+                            <td class="text-end px-2">{{ vals.d|floatformat:0|default:"-" }}</td>
+                            <td class="text-end px-2">{{ vals.c|floatformat:0|default:"-" }}</td>
+                            {% endwith %}
+                        {% endfor %}
+                        
+                        <td class="text-end fw-bold bg-light">{{ data.total_debit|floatformat:0 }}</td>
+                        <td class="text-end fw-bold bg-light">{{ data.total_credit|floatformat:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Выберите период для формирования сводной ОСВ.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FinBranch Analytics{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root { --sidebar-width: 280px; }
+        body { background-color: #f8f9fa; }
+        .sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; left: 0; top: 0; background: #212529; color: white; padding-top: 20px; }
+        .main-content { margin-left: var(--sidebar-width); padding: 30px; }
+        .nav-link { color: #adb5bd; }
+        .nav-link:hover, .nav-link.active { color: white; background: #343a40; }
+        .nav-section { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1rem; color: #6c757d; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar d-flex flex-column">
+    <div class="px-4 mb-4">
+        <h4 class="fw-bold text-white"><i class="bi bi-graph-up-arrow me-2"></i>FinBranch</h4>
+    </div>
+
+    <div class="nav-section">Аналитика</div>
+    <nav class="nav flex-column px-2">
+    <a class="nav-link rounded mb-1" href="{% url 'analytics_index' %}">
+        <i class="bi bi-speedometer2 me-2"></i>Панель управления
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'upload_financial_data' %}">
+        <i class="bi bi-file-earmark-arrow-up me-2"></i>Загрузка данных
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'upload_audit' %}">
+        <i class="bi bi-clipboard-check me-2"></i>Аудит загрузок
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'branch_dashboard' %}">
+        <i class="bi bi-geo-alt me-2"></i>Дашборд филиала
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'consolidated_report' %}">
+        <i class="bi bi-calculator me-2"></i>Консолидация ОПУ
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'consolidated_osv' %}">
+        <i class="bi bi-balance-scale me-2"></i>Консолидация ОСВ
+    </a>
+
+    <a class="nav-link rounded mb-1" href="{% url 'annual_analytics' %}">
+        <i class="bi bi-graph-up-arrow me-2"></i>Годовой прогноз
+    </a>
+</nav>
+
+    <div class="nav-section mt-3">Справочники</div>
+    <nav class="nav flex-column px-2">
+        <a class="nav-link rounded mb-1" href="{% url 'entity_list' %}"><i class="bi bi-building me-2"></i>Филиалы</a>
+        <a class="nav-link rounded mb-1" href="#"><i class="bi bi-list-check me-2"></i>Статьи ОПУ</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

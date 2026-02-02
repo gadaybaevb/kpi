@@ -1,0 +1,30 @@
+{% extends "analytics/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">Филиалы и подразделения</h2>
+    <a href="{% url 'entity_create' %}" class="btn btn-primary">+ Добавить филиал</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Название</th>
+                <th>Тип</th>
+                <th class="text-end">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entity in object_list %}
+            <tr>
+                <td>{{ entity.name }}</td>
+                <td>{% if entity.is_hq %}<span class="badge bg-danger">Головной офис</span>{% else %}Филиал{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'entity_edit' entity.pk %}" class="btn btn-sm btn-outline-secondary">Изменить</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

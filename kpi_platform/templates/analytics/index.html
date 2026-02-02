@@ -1,0 +1,57 @@
+{% extends "analytics/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-bold">Добро пожаловать в FinBranch Analytics</h2>
+            <p class="text-muted">Система управления финансовой эффективностью сети филиалов.</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                            <i class="bi bi-file-earmark-arrow-up text-primary fs-4"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fw-bold">Шаг 1: Загрузка</h5>
+                    </div>
+                    <p class="card-text text-muted">Загрузите файлы ОСВ и ОПУ из вашей учетной системы.</p>
+                    <a href="{% url 'upload_financial_data' %}" class="btn btn-sm btn-outline-primary">Перейти к загрузке</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-success bg-opacity-10 p-3 rounded-circle me-3">
+                            <i class="bi bi-search text-success fs-4"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fw-bold">Шаг 2: Анализ</h5>
+                    </div>
+                    <p class="card-text text-muted">Просматривайте отчеты по отдельным филиалам и отклонения план-факт.</p>
+                    <a href="{% url 'branch_dashboard' %}" class="btn btn-sm btn-outline-success">Смотреть дашборд</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-info bg-opacity-10 p-3 rounded-circle me-3">
+                            <i class="bi bi-globe text-info fs-4"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fw-bold">Шаг 3: Консолидация</h5>
+                    </div>
+                    <p class="card-text text-muted">Сводный отчет по всей компании за выбранный период.</p>
+                    <a href="{% url 'consolidated_report' %}" class="btn btn-sm btn-outline-info text-white">Открыть консоль</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

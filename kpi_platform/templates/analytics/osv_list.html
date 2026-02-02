@@ -1,0 +1,29 @@
+{% extends "analytics/base.html" %}
+{% block content %}
+<h2 class="fw-bold mb-4">Оборотно-сальдовая ведомость</h2>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Счет</th>
+                    <th>Наименование счета</th>
+                    <th class="text-end">Дебет (Оборот)</th>
+                    <th class="text-end">Кредит (Оборот)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in balances %}
+                <tr {% if b.account_code|length < 3 %}class="table-secondary fw-bold"{% endif %}>
+                    <td>{{ b.account_code }}</td>
+                    <td>{{ b.account_name }}</td>
+                    <td class="text-end text-success">{{ b.debit_turnover|floatformat:2 }}</td>
+                    <td class="text-end text-danger">{{ b.credit_turnover|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

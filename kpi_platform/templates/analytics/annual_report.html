@@ -1,0 +1,157 @@
+{% extends "analytics/base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3"><i class="bi bi-filter-square me-2"></i>Фильтры отчета</h5>
+            <form method="get" id="filterForm" class="row g-3 align-items-center">
+                <div class="col-md-4">
+                    <label class="small text-muted fw-bold">Филиал (пусто для консолидации)</label>
+                    <select name="entity" class="form-select border-primary" onchange="this.form.submit()">
+                        <option value="">-- Вся сеть (Консолидировано) --</option>
+                        {% for ent in entities %}
+                            <option value="{{ ent.id }}" {% if ent.id == selected_entity_id %}selected{% endif %}>
+                                {{ ent.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-8">
+                    <label class="small text-muted fw-bold d-block">Периоды сравнения</label>
+                    <div class="d-flex gap-4 mt-2">
+                        {% for y in available_years %}
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="years" value="{{ y }}"
+                                   id="year{{ y }}" {% if y in selected_years %}checked{% endif %}
+                                   onchange="this.form.submit()">
+                            <label class="form-check-label fw-bold" for="year{{ y }}">{{ y }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0 fw-bold text-success"><i class="bi bi-graph-up-arrow me-2"></i>Продажи: Факт и Прогноз</h5>
+        </div>
+        <div class="card-body">
+            <div style="height: 350px;"><canvas id="salesChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0 fw-bold text-info"><i class="bi bi-people me-2"></i>Динамика слушателей (Enrolled Students)</h5>
+        </div>
+        <div class="card-body">
+            <div style="height: 350px;"><canvas id="studentsChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-cash-stack me-2"></i>Чистая прибыль: Факт и Прогноз</h5>
+        </div>
+        <div class="card-body">
+            <div style="height: 350px;"><canvas id="profitChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const months = {{ months_labels|safe }};
+    const rawData = {{ comparison_data_json|safe }};
+
+    const palette = [
+        { border: '#0d6efd', bg: 'rgba(13, 110, 253, 0.05)' },
+        { border: '#198754', bg: 'rgba(25, 135, 84, 0.05)' },
+        { border: '#dc3545', bg: 'rgba(220, 53, 69, 0.05)' },
+        { border: '#6f42c1', bg: 'rgba(111, 66, 193, 0.05)' }
+    ];
+
+    function createDatasets(categoryName) {
+        const datasets = [];
+        let colorIndex = 0;
+
+        Object.keys(rawData).forEach(year => {
+            const color = palette[colorIndex % palette.length].border;
+            const yearData = rawData[year][categoryName];
+
+            if (!yearData) return;
+
+            // ФАКТ
+            datasets.push({
+                label: `${year} (Факт)`,
+                data: yearData.fact.map(v => v > 0 ? v : null),
+                borderColor: color,
+                backgroundColor: palette[colorIndex % palette.length].bg,
+                tension: 0.4,
+                fill: true,
+                borderWidth: 3,
+                pointRadius: 4,
+                zIndex: 2
+            });
+
+            // ПРОГНОЗ
+            if (JSON.stringify(yearData.fact) !== JSON.stringify(yearData.forecast)) {
+                datasets.push({
+                    label: `${year} (Прогноз)`,
+                    data: yearData.forecast,
+                    borderColor: color,
+                    borderDash: [6, 4],
+                    tension: 0.4,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    zIndex: 1
+                });
+            }
+            colorIndex++;
+        });
+        return datasets;
+    }
+
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                    label: (item) => `${item.dataset.label}: ${item.parsed.y.toLocaleString('ru-RU')}`
+                }
+            }
+        },
+        scales: {
+            y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('ru-RU') } }
+        }
+    };
+
+    // Отрисовка
+    new Chart(document.getElementById('salesChart'), {
+        type: 'line',
+        data: { labels: months, datasets: createDatasets('ИТОГО ПРОДАЖИ') },
+        options: commonOptions
+    });
+
+    new Chart(document.getElementById('studentsChart'), {
+        type: 'line',
+        data: { labels: months, datasets: createDatasets('КОЛИЧЕСТВО СЛУШАТЕЛЕЙ') },
+        options: commonOptions
+    });
+
+    new Chart(document.getElementById('profitChart'), {
+        type: 'line',
+        data: { labels: months, datasets: createDatasets('ЧИСТАЯ ПРИБЫЛЬ') },
+        options: commonOptions
+    });
+</script>
+{% endblock %}

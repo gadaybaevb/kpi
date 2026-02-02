@@ -1,0 +1,74 @@
+{% extends "analytics/base.html" %}
+{% load analytics_extras %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">Консолидированный отчет ОПУ (Сводный)</h2>
+
+        <form method="get" class="d-flex gap-2 bg-white p-2 rounded shadow-sm border">
+            <div class="input-group">
+                <span class="input-group-text bg-light"><i class="bi bi-calendar3"></i></span>
+                <select name="period" class="form-select border-primary" onchange="this.form.submit()" style="min-width: 200px;">
+                    <option value="">-- Выберите период --</option>
+                    {% for m in available_months %}
+                        <option value="{{ m|date:'Y-m-d' }}" {% if m|date:'Y-m-d' == selected_period %}selected{% endif %}>
+                            {{ m|date:"F Y" }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    {% if matrix %}
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0 align-middle">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th style="min-width: 300px;" class="text-start">Статьи ОПУ</th>
+                        {% for ent in entities %}
+                            <th>{{ ent.name }}</th>
+                        {% endfor %}
+                        <th class="bg-primary text-white">ИТОГО СЕТЬ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category, branch_values in matrix.items %}
+                    <tr {% if category.is_total %} class="table-secondary fw-bold" style="border-top: 2px solid #6c757d;" {% endif %}>
+                        <td class="text-start">
+                            {% if category.is_total %}
+                                <span class="ps-1 text-uppercase">{{ category.name }}</span>
+                            {% else %}
+                                <span class="ps-4 text-muted">{{ category.name }}</span>
+                            {% endif %}
+                        </td>
+
+                        {% for ent in entities %}
+                            <td class="text-end">
+                                {% with branch_values|dict_get:ent.id as val %}
+                                    {{ val|floatformat:0|default:"0" }}
+                                {% endwith %}
+                            </td>
+                        {% endfor %}
+
+                        <td class="text-end fw-bold bg-light text-primary">
+                            {% with total_network|dict_get:category.id as total %}
+                                {{ total|floatformat:0|default:"0" }}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info shadow-sm border-start border-4 border-info">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Пожалуйста, выберите отчетный период для формирования консолидированной таблицы.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

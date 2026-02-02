@@ -1,0 +1,148 @@
+{% extends "analytics/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="fw-bold mb-4">Аналитический дашборд филиала</h2>
+
+    <form method="get" class="row g-3 mb-4 bg-white p-3 rounded shadow-sm border">
+        <div class="col-md-5">
+            <label class="form-label fw-semibold text-muted">Филиал</label>
+            <select name="entity" class="form-select border-primary" onchange="this.form.submit()">
+                <option value="">-- Выберите из списка --</option>
+                {% for ent in entities %}
+                    <option value="{{ ent.id }}" {% if ent.id == selected_entity_id %}selected{% endif %}>
+                        {{ ent.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-5">
+            <label class="form-label fw-semibold text-muted">Доступные отчетные периоды</label>
+            <select name="period" class="form-select {% if not available_months and selected_entity_id %}is-invalid{% endif %}"
+                    {% if not available_months %}disabled{% endif %} onchange="this.form.submit()">
+                <option value="">-- Выберите месяц --</option>
+                {% for m in available_months %}
+                    {# Сверяем строку даты для корректного атрибута selected #}
+                    <option value="{{ m|date:'Y-m-d' }}" {% if m|date:'Y-m-d' == selected_period %}selected{% endif %}>
+                        {{ m|date:"F Y" }}
+                    </option>
+                {% endfor %}
+            </select>
+            {% if selected_entity_id and not available_months %}
+                <div class="invalid-feedback">Для этого филиала еще не загружены данные.</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100 fw-bold">
+                <i class="bi bi-bar-chart-fill me-2"></i>Сформировать
+            </button>
+        </div>
+    </form>
+
+    {% if data %}
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title fw-bold">Визуализация выполнения плана (основные показатели)</h5>
+                    <div style="height: 350px;">
+                        <canvas id="pnlChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width: 40%;">Статья</th>
+                                <th class="text-end">План</th>
+                                <th class="text-end">Факт</th>
+                                <th class="text-end">Отклонение</th>
+                                <th class="text-center">Исполнение</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in data %}
+                            <tr {% if row.is_total %} class="table-secondary fw-bold" style="border-top: 2px solid #6c757d;" {% endif %}>
+                                <td class="text-start">
+                                    {% if row.is_total %}
+                                        <span class="ps-1 text-uppercase">{{ row.category }}</span>
+                                    {% else %}
+                                        <span class="ps-4 text-muted">{{ row.category }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ row.plan|floatformat:0 }}</td>
+                                <td class="text-end">{{ row.fact|floatformat:0 }}</td>
+                                <td class="text-end {% if row.diff < 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ row.diff|floatformat:0 }}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge {% if row.perc < 100 %}bg-warning{% else %}bg-success{% endif %}">
+                                        {{ row.perc|floatformat:1 }}%
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('pnlChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels|safe }},
+                datasets: [
+                    {
+                        label: 'План',
+                        data: {{ chart_plan|safe }},
+                        backgroundColor: '#e9ecef',
+                        borderColor: '#dee2e6',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Факт',
+                        data: {{ chart_fact|safe }},
+                        backgroundColor: '#0d6efd',
+                        borderColor: '#0a58ca',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#f8f9fa' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    </script>
+    {% elif selected_period %}
+    <div class="alert alert-warning shadow-sm border-start border-4 border-warning">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        Данные за выбранный период не найдены. Убедитесь, что импорт прошел успешно.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

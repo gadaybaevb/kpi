@@ -13,7 +13,6 @@ import json  # Важно для передачи данных в JS
 from django.db.models import Sum
 from django.contrib import messages
 from django.db.models.functions import ExtractYear, ExtractMonth
-from scipy import stats
 import numpy as np
 from django.contrib.auth.mixins import LoginRequiredMixin
 

@@ -11,7 +11,7 @@ from django.urls import reverse_lazy
 import pandas as pd
 from datetime import datetime, date
 import json  # Важно для передачи данных в JS
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.contrib import messages
 from django.db.models.functions import ExtractYear, ExtractMonth
 import numpy as np
@@ -484,72 +484,107 @@ def cash_flow_analytics(request):
     selected_years = [int(y) for y in selected_years]
 
     entity_id = request.GET.get('entity')
+    is_consolidated = not entity_id
+
     available_years = range(2023, date.today().year + 2)
     entities = Entity.objects.all()
     months = range(1, 13)
 
+    # Категории анализа
     cash_categories = {
-        "TOTAL_IN": {"code": "1.0", "field": "debit_turnover", "label": "Приход (Общий)"},
-        "TOTAL_OUT": {"code": "1.0", "field": "credit_turnover", "label": "Расход (Общий)"},
-        "BANK_IN": {"code": "1.02", "field": "debit_turnover", "label": "Приход (Банк)"},
-        "OFFICE_IN": {"code": "1.01", "field": "debit_turnover", "label": "Приход (Касса)"},
+        "TOTAL_IN": {"code": "1.0", "field": "debit_turnover"},
+        "TOTAL_OUT": {"code": "1.0", "field": "credit_turnover"},
+        "BANK_IN": {"code": "1.02", "field": "debit_turnover"},
+        "CASH_10_IN": {"code": "1.01.10", "field": "debit_turnover"},
+        "CASH_11_IN": {"code": "1.01.11", "field": "debit_turnover"},
     }
 
-    # 1. Считаем глобальную сезонность по всей базе
+    def get_filtered_qs(base_qs, cfg_code, field_name):
+        """
+        Исключает субтоталы, счета выше 1.02.* и внутригрупповые обороты ГО.
+        """
+        # 1. Берем только счета, начинающиеся на 1.01 или 1.02
+        # 2. И только те, у которых есть 2 точки (листовые счета), исключая 1.01 и 1.02
+        qs = base_qs.filter(
+            Q(account_code__startswith="1.01.") | Q(account_code__startswith="1.02."),
+            account_code__regex=r'^\d+\.\d+\.\d+'
+        )
+
+        # Если мы считаем конкретную категорию (например, CASH_10_IN),
+        # дополнительно фильтруем по её префиксу
+        if cfg_code != "1.0":
+            qs = qs.filter(account_code__startswith=cfg_code)
+
+        if is_consolidated:
+            # Исключаем технические переводы ГО
+            qs = qs.exclude(entity__is_hq=True, account_code__in=['1.01.30', '1.01.50'])
+
+            # У счета 1.02.10 (Банк) у ГО исключаем расход при консолидации
+            if field_name == 'credit_turnover':
+                qs = qs.exclude(entity__is_hq=True, account_code='1.02.10')
+
+        return qs
+
+    # 1. Расчет сезонности и трендов
     seasonality_map = {}
-    last_trends = {}  # Здесь сохраним последние реальные цифры для прыжка в будущее
+    last_trends = {}
 
     for key, cfg in cash_categories.items():
         m_vals = []
         for m in months:
-            qs = TrialBalance.objects.filter(period__month=m, account_code__startswith=cfg['code'])
+            qs = TrialBalance.objects.filter(period__month=m)
             if entity_id: qs = qs.filter(entity_id=entity_id)
-            m_vals.append(float(qs.aggregate(total=Sum(cfg['field']))['total'] or 0))
+            final_qs = get_filtered_qs(qs, cfg['code'], cfg['field'])
+            val = float(final_qs.aggregate(total=Sum(cfg['field']))['total'] or 0)
+            m_vals.append(val)
 
         avg_val = np.mean(m_vals) if np.mean(m_vals) > 0 else 1
         seasonality_map[key] = [v / avg_val for v in m_vals]
 
-        # Находим тренд: берем 2 последних месяца из всей истории
-        all_facts = TrialBalance.objects.filter(account_code__startswith=cfg['code']).order_by('-period')
-        if entity_id: all_facts = all_facts.filter(entity_id=entity_id)
+        trend_qs = TrialBalance.objects.all()
+        if entity_id: trend_qs = trend_qs.filter(entity_id=entity_id)
+        final_trend_qs = get_filtered_qs(trend_qs, cfg['code'], cfg['field'])
+        trend_data = final_trend_qs.values('period').annotate(total=Sum(cfg['field'])).order_by('-period')[:2]
+        last_trends[key] = np.mean([float(x['total']) for x in trend_data]) if trend_data else 0
 
-        # Берем последние уникальные периоды
-        trend_data = all_facts.values('period').annotate(total=Sum(cfg['field'])).order_by('-period')[:2]
-        if trend_data:
-            last_trends[key] = np.mean([float(x['total']) for x in trend_data])
-        else:
-            last_trends[key] = 0
-
+    # 2. Сбор данных и отладка
     comparison_data = {}
 
-    # 2. Формируем данные для каждого выбранного года
+    print("\n" + "=" * 100)
+    print(f"DEBUG CASH FLOW | ОГРАНИЧЕНИЕ ПО 1.02.50 | КОНСОЛИДИРОВАНО: {is_consolidated}")
+    print("=" * 100)
+
     for year in selected_years:
         comparison_data[year] = {key: {'fact': [], 'forecast': []} for key in cash_categories}
         for key, cfg in cash_categories.items():
             facts = []
+            print(f"\n[Группа: {key} | {year}]")
+
             for m in months:
                 p = date(year, m, 1)
-                qs = TrialBalance.objects.filter(period=p, account_code__startswith=cfg['code'])
-                if entity_id: qs = qs.filter(entity_id=entity_id)
-                facts.append(float(qs.aggregate(total=Sum(cfg['field']))['total'] or 0))
+                base_qs = TrialBalance.objects.filter(period=p)
+                if entity_id: base_qs = base_qs.filter(entity_id=entity_id)
+
+                final_qs = get_filtered_qs(base_qs, cfg['code'], cfg['field'])
+
+                details = final_qs.values('account_code', 'entity__name').annotate(amount=Sum(cfg['field']))
+                month_sum = 0
+
+                if details.exists():
+                    print(f"  Месяц {m:02d}:")
+                    for entry in details:
+                        amt = float(entry['amount'] or 0)
+                        if amt != 0:
+                            print(f"    - {entry['account_code']:10} | {amt:15,.2f} | {entry['entity__name']}")
+                            month_sum += amt
+                    print(f"    СУММА: {month_sum:,.2f}")
+
+                facts.append(month_sum)
 
             comparison_data[year][key]['fact'] = facts
-
-            # Прогноз:
-            # Если в году есть факты, используем их тренд. Если год пустой (2026), используем глобальный тренд.
             current_hist = [v for v in facts if v > 0]
             base_trend = np.mean(current_hist[-2:]) if len(current_hist) >= 2 else last_trends[key]
-
-            forecast = []
-            for m in months:
-                # Если факт уже есть, в прогноз пишем факт (для плавной линии)
-                if facts[m - 1] > 0:
-                    forecast.append(facts[m - 1])
-                else:
-                    # Если факта нет, множим тренд на сезонность месяца
-                    val = round(base_trend * seasonality_map[key][m - 1], 2)
-                    forecast.append(val)
-
+            forecast = [facts[i] if facts[i] > 0 else round(base_trend * seasonality_map[key][i], 2) for i in range(12)]
             comparison_data[year][key]['forecast'] = forecast
 
     return render(request, 'analytics/cash_flow_report.html', {

@@ -8,6 +8,7 @@ from .models import Entity, PnLData, TrialBalance, Category
 from datetime import datetime
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
+import pandas as pd
 from datetime import datetime, date
 import json  # Важно для передачи данных в JS
 from django.db.models import Sum
@@ -15,6 +16,48 @@ from django.contrib import messages
 from django.db.models.functions import ExtractYear, ExtractMonth
 import numpy as np
 from django.contrib.auth.mixins import LoginRequiredMixin
+import re
+
+
+def validate_file_type(file, expected_type):
+    try:
+        # Читаем первые 30 строк без заголовков
+        df = pd.read_excel(file, nrows=30, header=None)
+
+        # Превращаем в список строк, убирая пустые значения (nan)
+        flat_list = df.astype(str).values.flatten()
+        all_text = " ".join([str(x) for x in flat_list if str(x).lower() != 'nan']).lower()
+
+        # Убираем лишние пробелы и переносы
+        all_text = re.sub(r'\s+', ' ', all_text)
+
+        if expected_type == 'osv':
+            # В ОСВ обязательно должны быть эти 3 слова
+            if 'оборотно-сальдовая' not in all_text or 'счет' not in all_text:
+                return False, "Файл не распознан как ОСВ (не найдена шапка ведомости)."
+
+            # Проверка наличия колонок
+            if 'дебет' not in all_text and 'кредит' not in all_text:
+                return False, "В ОСВ не найдены колонки Дебет/Кредит."
+
+        elif expected_type == 'pnl':
+            # В ОПУ ищем характерные слова из вашего файла
+            # Проверяем по отдельности, так как они могут быть в разных ячейках
+            pnl_markers = ['сравнительный', 'анализ', 'фхд']
+            if not all(m in all_text for m in pnl_markers):
+                return False, "Файл не похож на ОПУ (не найдено 'Сравнительный анализ ФХД')."
+
+            # В вашем ОПУ 'план' и 'факт' — железные маркеры
+            if 'план' not in all_text or 'факт' not in all_text:
+                return False, "В ОПУ не найдены обязательные столбцы План/Факт."
+
+            # Защита от перепутывания
+            if 'оборотно-сальдовая' in all_text:
+                return False, "Это файл ОСВ, а вы загружаете его в поле ОПУ."
+
+        return True, ""
+    except Exception as e:
+        return False, f"Ошибка парсинга: {str(e)}"
 
 
 @login_required
@@ -22,17 +65,37 @@ def upload_financial_data(request):
     if request.method == 'POST':
         form = UploadFinanceForm(request.POST, request.FILES)
         if form.is_valid():
+            # 1. Извлекаем данные из формы
             entity = form.cleaned_data['entity']
-            # Собираем дату из новых полей month и year
-            period = date(int(form.cleaned_data['year']), int(form.cleaned_data['month']), 1)
+            year = int(form.cleaned_data['year'])
+            month = int(form.cleaned_data['month'])
+            period = date(year, month, 1)
             overwrite = request.POST.get('overwrite') == 'True'
 
-            # Проверяем, есть ли уже данные за этот период
-            existing_pnl = PnLData.objects.filter(entity=entity, period=period).exists()
-            # existing_osv = ВашаМодельОСВ.objects.filter(entity=entity, period=period).exists()
+            # 2. ВАЛИДАЦИЯ ФАЙЛОВ (Бронебойная проверка)
+            if 'file_osv' in request.FILES:
+                f_osv = request.FILES['file_osv']
+                valid, msg = validate_file_type(f_osv, 'osv')
+                f_osv.seek(0)  # Перемотка назад обязательна
+                if not valid:
+                    messages.error(request, f"Ошибка ОСВ: {msg}")
+                    return render(request, 'analytics/upload.html', {'form': form})
 
-            if existing_pnl and not overwrite:
-                # Если данные есть, но подтверждения нет — возвращаем форму с флагом
+            if 'file_pnl' in request.FILES:
+                f_pnl = request.FILES['file_pnl']
+                valid, msg = validate_file_type(f_pnl, 'pnl')
+                f_pnl.seek(0)  # Перемотка назад
+                if not valid:
+                    messages.error(request, f"Ошибка ОПУ: {msg}")
+                    return render(request, 'analytics/upload.html', {'form': form})
+
+            # 3. ПРОВЕРКА НА СУЩЕСТВУЮЩИЕ ДАННЫЕ
+            # Проверяем и ОПУ и ОСВ
+            existing_pnl = PnLData.objects.filter(entity=entity, period=period).exists()
+            existing_osv = TrialBalance.objects.filter(entity=entity, period=period).exists()
+
+            if (existing_pnl or existing_osv) and not overwrite:
+                # Если данные есть, но нет подтверждения - просим подтвердить
                 return render(request, 'analytics/upload.html', {
                     'form': form,
                     'needs_confirm': True,
@@ -40,25 +103,27 @@ def upload_financial_data(request):
                     'period_label': period.strftime('%m.%Y')
                 })
 
-            # Если пользователь нажал "Да, перезаписать"
+            # 4. УДАЛЕНИЕ СТАРЫХ ДАННЫХ ПРИ ПЕРЕЗАПИСИ
             if overwrite:
                 PnLData.objects.filter(entity=entity, period=period).delete()
-                # ВашаМодельОСВ.objects.filter(entity=entity, period=period).delete()
-                # Теперь удаляем и ОСВ:
                 TrialBalance.objects.filter(entity=entity, period=period).delete()
-                messages.info(request, f"Старые данные за {period.strftime('%B %Y')} удалены.")
+                messages.info(request, f"Старые данные за {period.strftime('%B %Y')} по {entity.name} удалены.")
 
-            # Загрузка ОПУ
-            if 'file_pnl' in request.FILES:
-                process_pnl_file(request.FILES['file_pnl'], entity, period)
-                messages.success(request, f"ОПУ {entity.name} успешно загружен.")
+            # 5. ЗАПУСК ПАРСИНГА (СОХРАНЕНИЕ)
+            try:
+                if 'file_pnl' in request.FILES:
+                    process_pnl_file(request.FILES['file_pnl'], entity, period)
+                    messages.success(request, f"ОПУ успешно загружен.")
 
-            # Загрузка ОСВ
-            if 'file_osv' in request.FILES:
-                process_osv_file(request.FILES['file_osv'], entity, period)
-                messages.success(request, f"ОСВ {entity.name} успешно загружена.")
+                if 'file_osv' in request.FILES:
+                    process_osv_file(request.FILES['file_osv'], entity, period)
+                    messages.success(request, f"ОСВ успешно загружена.")
 
-            return redirect('upload_financial_data')
+                return redirect('upload_financial_data')
+
+            except Exception as e:
+                messages.error(request, f"Ошибка при обработке данных: {str(e)}")
+                return render(request, 'analytics/upload.html', {'form': form})
     else:
         form = UploadFinanceForm()
 
@@ -333,8 +398,7 @@ def annual_analytics(request):
     entities = Entity.objects.all()
     months = range(1, 13)
 
-    # КОРРЕКТИРОВКА: Имена должны строго совпадать или быть частью имен в БД
-    # Используем технический ключ для маппинга, чтобы в коде было удобно
+    # Категории из ваших файлов ОПУ
     categories_map = {
         "ИТОГО ПРОДАЖИ": "ИТОГО ПРОДАЖИ",
         "ЧИСТАЯ ПРИБЫЛЬ": "ЧИСТАЯ ПРИБЫЛЬ",
@@ -342,29 +406,35 @@ def annual_analytics(request):
     }
 
     target_categories = list(categories_map.keys())
-
-    # 1. Вычисляем сезонные коэффициенты
-    seasonality_map = {cat: {m: 0.0 for m in months} for cat in target_categories}
     historical_data = PnLData.objects.all()
     if entity_id:
         historical_data = historical_data.filter(entity_id=entity_id)
 
+    # 1. Считаем глобальную сезонность и ТРЕНД (последние данные из базы)
+    seasonality_map = {}
+    global_trends = {}
+
     for cat_key, db_name in categories_map.items():
-        month_averages = []
+        m_vals = []
         for m in months:
             val = historical_data.filter(
                 period__month=m,
                 category__name__icontains=db_name
             ).aggregate(total=Sum('fact'))['total'] or 0
-            seasonality_map[cat_key][m] = float(val)
-            month_averages.append(float(val))
+            m_vals.append(float(val))
 
-        # Нормализация
-        mean_val = np.mean(month_averages) if np.mean(month_averages) > 0 else 1
-        for m in months:
-            seasonality_map[cat_key][m] = seasonality_map[cat_key][m] / mean_val
+        # Коэффициенты сезонности
+        mean_v = np.mean(m_vals) if np.mean(m_vals) > 0 else 1
+        seasonality_map[cat_key] = [v / mean_v for v in m_vals]
 
-    # 2. Формирование данных для графиков
+        # Глобальный тренд (среднее последних 2-х месяцев из всей истории)
+        last_data = historical_data.filter(category__name__icontains=db_name).order_by('-period')[:2]
+        if last_data.exists():
+            global_trends[cat_key] = np.mean([float(x.fact) for x in last_data])
+        else:
+            global_trends[cat_key] = 0
+
+    # 2. Формирование данных по годам
     comparison_data = {}
     for year in selected_years:
         comparison_data[year] = {cat: {'fact': [], 'forecast': []} for cat in target_categories}
@@ -372,33 +442,117 @@ def annual_analytics(request):
         for cat_key, db_name in categories_map.items():
             monthly_facts = []
             for m in months:
-                period = date(year, m, 1)
-                qs = PnLData.objects.filter(period=period, category__name__icontains=db_name)
-                if entity_id:
-                    qs = qs.filter(entity_id=entity_id)
-
-                val = qs.aggregate(total=Sum('fact'))['total'] or 0
+                p = date(year, m, 1)
+                val = historical_data.filter(period=p, category__name__icontains=db_name).aggregate(total=Sum('fact'))[
+                          'total'] or 0
                 monthly_facts.append(float(val))
 
             comparison_data[year][cat_key]['fact'] = monthly_facts
 
-            # ПРОГНОЗ
+            # Расчет прогноза
             y_history = [v for v in monthly_facts if v > 0]
-            if 0 < len(y_history) < 12:
-                current_avg = np.mean(y_history)
-                forecast_values = []
-                for m in months:
-                    if m <= len(y_history):
-                        forecast_values.append(monthly_facts[m - 1])
-                    else:
-                        coeff = seasonality_map[cat_key][m]
-                        prediction = current_avg * coeff
-                        forecast_values.append(round(max(0, prediction), 2))
-                comparison_data[year][cat_key]['forecast'] = forecast_values
-            else:
-                comparison_data[year][cat_key]['forecast'] = monthly_facts
+            # Если в текущем году есть хоть какой-то факт (например, январь 2026), берем его среднее.
+            # Если фактов вообще нет (пустой 2026), берем глобальный тренд.
+            current_avg = np.mean(y_history[-2:]) if len(y_history) > 0 else global_trends[cat_key]
+
+            forecast_values = []
+            for m in months:
+                if monthly_facts[m - 1] > 0:
+                    forecast_values.append(monthly_facts[m - 1])
+                else:
+                    coeff = seasonality_map[cat_key][m - 1]
+                    forecast_values.append(round(max(0, current_avg * coeff), 2))
+
+            comparison_data[year][cat_key]['forecast'] = forecast_values
 
     return render(request, 'analytics/annual_report.html', {
+        'selected_years': selected_years,
+        'available_years': available_years,
+        'entities': entities,
+        'selected_entity_id': int(entity_id) if (entity_id and entity_id.isdigit()) else None,
+        'comparison_data_json': json.dumps(comparison_data),
+        'months_labels': json.dumps(
+            ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"])
+    })
+
+
+@login_required
+def cash_flow_analytics(request):
+    selected_years = request.GET.getlist('years')
+    if not selected_years:
+        selected_years = [str(date.today().year)]
+    selected_years = [int(y) for y in selected_years]
+
+    entity_id = request.GET.get('entity')
+    available_years = range(2023, date.today().year + 2)
+    entities = Entity.objects.all()
+    months = range(1, 13)
+
+    cash_categories = {
+        "TOTAL_IN": {"code": "1.0", "field": "debit_turnover", "label": "Приход (Общий)"},
+        "TOTAL_OUT": {"code": "1.0", "field": "credit_turnover", "label": "Расход (Общий)"},
+        "BANK_IN": {"code": "1.02", "field": "debit_turnover", "label": "Приход (Банк)"},
+        "OFFICE_IN": {"code": "1.01", "field": "debit_turnover", "label": "Приход (Касса)"},
+    }
+
+    # 1. Считаем глобальную сезонность по всей базе
+    seasonality_map = {}
+    last_trends = {}  # Здесь сохраним последние реальные цифры для прыжка в будущее
+
+    for key, cfg in cash_categories.items():
+        m_vals = []
+        for m in months:
+            qs = TrialBalance.objects.filter(period__month=m, account_code__startswith=cfg['code'])
+            if entity_id: qs = qs.filter(entity_id=entity_id)
+            m_vals.append(float(qs.aggregate(total=Sum(cfg['field']))['total'] or 0))
+
+        avg_val = np.mean(m_vals) if np.mean(m_vals) > 0 else 1
+        seasonality_map[key] = [v / avg_val for v in m_vals]
+
+        # Находим тренд: берем 2 последних месяца из всей истории
+        all_facts = TrialBalance.objects.filter(account_code__startswith=cfg['code']).order_by('-period')
+        if entity_id: all_facts = all_facts.filter(entity_id=entity_id)
+
+        # Берем последние уникальные периоды
+        trend_data = all_facts.values('period').annotate(total=Sum(cfg['field'])).order_by('-period')[:2]
+        if trend_data:
+            last_trends[key] = np.mean([float(x['total']) for x in trend_data])
+        else:
+            last_trends[key] = 0
+
+    comparison_data = {}
+
+    # 2. Формируем данные для каждого выбранного года
+    for year in selected_years:
+        comparison_data[year] = {key: {'fact': [], 'forecast': []} for key in cash_categories}
+        for key, cfg in cash_categories.items():
+            facts = []
+            for m in months:
+                p = date(year, m, 1)
+                qs = TrialBalance.objects.filter(period=p, account_code__startswith=cfg['code'])
+                if entity_id: qs = qs.filter(entity_id=entity_id)
+                facts.append(float(qs.aggregate(total=Sum(cfg['field']))['total'] or 0))
+
+            comparison_data[year][key]['fact'] = facts
+
+            # Прогноз:
+            # Если в году есть факты, используем их тренд. Если год пустой (2026), используем глобальный тренд.
+            current_hist = [v for v in facts if v > 0]
+            base_trend = np.mean(current_hist[-2:]) if len(current_hist) >= 2 else last_trends[key]
+
+            forecast = []
+            for m in months:
+                # Если факт уже есть, в прогноз пишем факт (для плавной линии)
+                if facts[m - 1] > 0:
+                    forecast.append(facts[m - 1])
+                else:
+                    # Если факта нет, множим тренд на сезонность месяца
+                    val = round(base_trend * seasonality_map[key][m - 1], 2)
+                    forecast.append(val)
+
+            comparison_data[year][key]['forecast'] = forecast
+
+    return render(request, 'analytics/cash_flow_report.html', {
         'selected_years': selected_years,
         'available_years': available_years,
         'entities': entities,

@@ -50,7 +50,10 @@
     </a>
 
     <a class="nav-link rounded mb-1" href="{% url 'annual_analytics' %}">
-        <i class="bi bi-graph-up-arrow me-2"></i>Годовой прогноз
+        <i class="bi bi-graph-up-arrow me-2"></i>Годовой прогноз ОПУ
+    </a>
+        <a class="nav-link rounded mb-1" href="{% url 'cash_flow' %}">
+        <i class="bi bi-graph-up-arrow me-2"></i>Годовой прогноз Cash Flow
     </a>
 </nav>
 
@@ -63,12 +66,25 @@
 
 <div class="main-content">
     {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        {% endfor %}
+        <div class="message-container">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-lg border-0 custom-alert" role="alert">
+                    <div class="d-flex align-items-center">
+                        {% if message.tags == 'success' %}
+                            <i class="bi bi-check-circle-fill me-3 fs-4"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                        {% else %}
+                            <i class="bi bi-info-circle-fill me-3 fs-4"></i>
+                        {% endif %}
+                        <div>
+                            {{ message }}
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
     {% endif %}
 
     {% block content %}{% endblock %}

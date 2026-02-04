@@ -12,6 +12,7 @@ from .views import (
     upload_audit_calendar,
     consolidated_osv,
     annual_analytics,
+    cash_flow_analytics,
 )
 
 urlpatterns = [
@@ -22,6 +23,7 @@ urlpatterns = [
     path('consolidated/', consolidated_report, name='consolidated_report'),
     path('consolidated_osv/', consolidated_osv, name='consolidated_osv'),
     path('annual_analytics/', annual_analytics, name='annual_analytics'),
+    path('cash_flow/', cash_flow_analytics, name='cash_flow'),
     path('upload/', upload_financial_data, name='upload_financial_data'),
     # Справочник филиалов
     path('entities/', EntityListView.as_view(), name='entity_list'),

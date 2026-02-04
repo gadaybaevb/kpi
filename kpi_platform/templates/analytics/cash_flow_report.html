@@ -1,0 +1,191 @@
+{% extends "analytics/base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <h5 class="fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Анализ и Прогноз Cash Flow</h5>
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="small text-muted">Филиал</label>
+                    <select name="entity" class="form-select" onchange="this.form.submit()">
+                        <option value="">-- Вся сеть --</option>
+                        {% for ent in entities %}
+                            <option value="{{ ent.id }}" {% if ent.id == selected_entity_id %}selected{% endif %}>{{ ent.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-9">
+                    <label class="small text-muted">Выберите периоды (включая будущие для прогноза)</label>
+                    <div class="d-flex flex-wrap gap-3 mt-1">
+                        {% for y in available_years %}
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="years" value="{{ y }}"
+                                   {% if y in selected_years %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="form-check-label">{{ y }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center p-3">
+            <strong class="text-uppercase small fw-bold">Движение денежных средств: Приход vs Расход</strong>
+            <div class="d-flex gap-3">
+                <span class="small"><span style="color: #198754">●</span> Факт</span>
+                <span class="small"><span style="color: #198754">---</span> Прогноз</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div style="height: 450px;"><canvas id="mainCashFlowChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white text-primary fw-bold small">БАНК (Поступления 1.02)</div>
+                <div class="card-body"><div style="height: 280px;"><canvas id="bankInChart"></canvas></div></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white text-success fw-bold small">КАССА (Поступления 1.01)</div>
+                <div class="card-body"><div style="height: 280px;"><canvas id="officeInChart"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    const months = {{ months_labels|safe }};
+    const rawData = {{ comparison_data_json|safe }};
+
+    // Цвета для разных лет
+    const yearColors = {
+        2024: { in: '#2a9d8f', out: '#e76f51' },
+        2025: { in: '#198754', out: '#dc3545' },
+        2026: { in: '#0d6efd', out: '#6610f2' }
+    };
+
+    function createDatasets(year, key, labelSuffix, colorBase) {
+        const dataObj = rawData[year][key];
+        const datasets = [];
+
+        // 1. Линия Факта (сплошная)
+        // Рисуем только там, где значение > 0.
+        datasets.push({
+            label: `${year} ${labelSuffix} (Факт)`,
+            data: dataObj.fact.map(v => v > 0 ? v : null),
+            borderColor: colorBase,
+            backgroundColor: colorBase,
+            borderWidth: 4,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            spanGaps: false // Линия обрывается там, где данных нет
+        });
+
+        // 2. Линия Прогноза (пунктирная)
+        datasets.push({
+            label: `${year} ${labelSuffix} (Прогноз)`,
+            data: dataObj.forecast,
+            borderColor: colorBase,
+            borderDash: [6, 4],
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+            fill: false
+        });
+
+        return datasets;
+    }
+
+    // Инициализация графиков
+    function initCharts() {
+        const mainCtx = document.getElementById('mainCashFlowChart').getContext('2d');
+        let mainDatasets = [];
+
+        Object.keys(rawData).sort().forEach(year => {
+            const color = yearColors[year] || { in: '#333', out: '#999' };
+            mainDatasets = mainDatasets.concat(createDatasets(year, 'TOTAL_IN', 'Приход', color.in));
+            mainDatasets = mainDatasets.concat(createDatasets(year, 'TOTAL_OUT', 'Расход', color.out));
+        });
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 15,
+                        filter: (item) => !item.text.includes('(Прогноз)') // Скрываем "прогноз" из легенды
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            const val = context.parsed.y;
+                            // Если за этот месяц есть факт, скрываем прогноз в тултипе, чтобы не дублировать
+                            if (label.includes('(Прогноз)')) {
+                                const year = label.split(' ')[0];
+                                const type = label.includes('Приход') ? 'Приход' : 'Расход';
+                                const factExists = context.chart.data.datasets.some(ds =>
+                                    ds.label === `${year} ${type} (Факт)` && ds.data[context.dataIndex] !== null
+                                );
+                                if (factExists) return null;
+                            }
+                            return `${label}: ${val.toLocaleString()} сум`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { borderDash: [2, 2] } },
+                x: { grid: { display: false } }
+            }
+        };
+
+        new Chart(mainCtx, { type: 'line', data: { labels: months, datasets: mainDatasets }, options: chartOptions });
+
+        // Малые графики
+        renderSub('bankInChart', 'BANK_IN', 'Приход (Банк)', '#0d6efd');
+        renderSub('officeInChart', 'OFFICE_IN', 'Приход (Касса)', '#198754');
+    }
+
+    function renderSub(id, key, label, defaultColor) {
+        let ds = [];
+        Object.keys(rawData).sort().forEach(year => {
+            const color = yearColors[year] ? yearColors[year].in : defaultColor;
+            ds = ds.concat(createDatasets(year, key, label, color));
+        });
+        new Chart(document.getElementById(id), {
+            type: 'line',
+            data: { labels: months, datasets: ds },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+
+<style>
+    .card { border-radius: 15px; overflow: hidden; }
+    .card-header { border-bottom: 1px solid #f0f0f0 !important; }
+    .form-check-input:checked { background-color: #0d6efd; border-color: #0d6efd; }
+</style>
+{% endblock %}

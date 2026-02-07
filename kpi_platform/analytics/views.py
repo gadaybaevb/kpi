@@ -26,7 +26,7 @@ RUS_MONTHS = {
     'июл': 7, 'авг': 8, 'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12
 }
 
-@login_required
+
 def process_multi_pnl_file(file, entity, year):
     df = pd.read_excel(file, header=None)
 

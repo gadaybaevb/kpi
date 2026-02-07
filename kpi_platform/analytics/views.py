@@ -29,7 +29,6 @@ RUS_MONTHS = {
 
 def process_multi_pnl_file(file, entity, year):
     df = pd.read_excel(file, header=None)
-
     # 1. Поиск шапки
     header_idx = None
     for i, row in df.iterrows():

@@ -12,7 +12,9 @@ class EntityAdmin(admin.ModelAdmin):
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('order', 'name', 'is_total')
-    list_editable = ('order', 'is_total') # Можно менять порядок прямо в списке
+    # Делаем поле 'name' ссылкой, чтобы освободить 'order' для редактирования
+    list_display_links = ('name',)
+    list_editable = ('order', 'is_total')
     search_fields = ('name',)
 
 

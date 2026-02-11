@@ -25,72 +25,133 @@ RUS_MONTHS = {
     'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4, 'май': 5, 'июн': 6,
     'июл': 7, 'авг': 8, 'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12
 }
+# Словарь синонимов для объединения категорий
+CATEGORY_MAPPING = {
+    # Слушатели
+    "количество слушателей / number of students": "Кол-во заявок на обучение / Number of enrolled students",
+    "количество слушателей": "Кол-во заявок на обучение / Number of enrolled students",
+    "количество студентов": "Кол-во заявок на обучение / Number of enrolled students",
+
+    # Прибыль
+    "чистая прибыль / net profit": "Чистая прибыль",
+    "итого чистая прибыль": "Чистая прибыль",
+}
+
+
+def normalize_category_name(raw_name):
+    """Очищает строку и заменяет синонимы на эталонные названия."""
+    if not raw_name: return ""
+    # Убираем лишние пробелы и переносы строк внутри текста
+    clean_name = " ".join(str(raw_name).split())
+    # Ищем в маппинге (в нижнем регистре для точности)
+    lookup_name = clean_name.lower()
+    return CATEGORY_MAPPING.get(lookup_name, clean_name)
+
+
+def force_float(val):
+    """Преобразует строку/число из Excel в float."""
+    if pd.isna(val): return 0.0
+    if isinstance(val, (int, float)): return float(val)
+    s = str(val).replace('\xa0', '').replace(' ', '').replace(',', '.')
+    s = re.sub(r'[^\d\.\-]', '', s)
+    try:
+        return float(s) if s else 0.0
+    except:
+        return 0.0
 
 
 def process_multi_pnl_file(file, entity, year):
+    # Читаем все листы или первый
     df = pd.read_excel(file, header=None)
-    # 1. Поиск шапки
+
+    # 1. Поиск шапки и определение формата
     header_idx = None
+    is_split_format = False  # True если есть Факт/План
+
     for i, row in df.iterrows():
-        row_str = " ".join([str(x).lower() for x in row.values])
+        row_str = " ".join([str(x).lower() for x in row.values if not pd.isna(x)])
+        # Проверяем первый формат (Факт + План)
         if 'факт' in row_str and 'план' in row_str:
             header_idx = i
+            is_split_format = True
+            break
+        # Проверяем второй формат (Школа - просто месяцы)
+        if 'январь' in row_str or 'февраль' in row_str:
+            header_idx = i
+            is_split_format = False
             break
 
     if header_idx is None:
+        print("ОШИБКА: Не удалось распознать формат заголовка.")
         return 0
 
     # 2. Определение колонок месяцев
-    months_row = df.iloc[header_idx - 1]
-    columns_row = df.iloc[header_idx]
     month_configs = []
-    current_m = None
 
-    for col_idx in range(len(columns_row)):
-        cell_m = str(months_row.iloc[col_idx]).lower().strip()
-        for m_name, m_num in RUS_MONTHS.items():
-            if m_name in cell_m:
-                current_m = m_num
+    if is_split_format:
+        # ЛОГИКА ФОРМАТА 1 (Месяцы строкой выше)
+        months_row = df.iloc[header_idx - 1]
+        columns_row = df.iloc[header_idx]
+        current_m = None
+        for col_idx in range(len(columns_row)):
+            cell_m = str(months_row.iloc[col_idx]).lower().strip()
+            for m_name, m_num in RUS_MONTHS.items():
+                if m_name in cell_m:
+                    current_m = m_num
 
-        col_name = str(columns_row.iloc[col_idx]).lower().strip()
-        if col_name == 'факт' and current_m:
-            if 'итого' not in str(months_row.iloc[col_idx]).lower():
-                month_configs.append({'month': current_m, 'f': col_idx, 'p': col_idx + 1})
+            col_name = str(columns_row.iloc[col_idx]).lower().strip()
+            if col_name == 'факт' and current_m:
+                if 'итого' not in cell_m:
+                    month_configs.append({'month': current_m, 'f': col_idx, 'p': col_idx + 1})
+    else:
+        # ЛОГИКА ФОРМАТА 2 (Месяцы в той же строке, что и статьи)
+        header_row = df.iloc[header_idx]
+        for col_idx in range(len(header_row)):
+            cell_val = str(header_row.iloc[col_idx]).lower().strip()
+            for m_name, m_num in RUS_MONTHS.items():
+                if m_name == cell_val:  # Прямое совпадение месяца
+                    month_configs.append({'month': m_num, 'f': col_idx, 'p': None})
 
     # 3. Сбор и сохранение данных
     with transaction.atomic():
-        # Удаляем старое за эти месяцы
         target_months = [cfg['month'] for cfg in month_configs]
-        PnLData.objects.filter(entity=entity, period__year=year, period__month__in=target_months).delete()
+        PnLData.objects.filter(
+            entity=entity,
+            period__year=year,
+            period__month__in=target_months
+        ).delete()
 
         data_rows = df.iloc[header_idx + 1:]
         to_create = []
 
-        def force_float(val):
-            if pd.isna(val): return 0.0
-            s = str(val).replace('\xa0', '').replace(' ', '').replace(',', '.')
-            s = re.sub(r'[^\d\.\-]', '', s)
-            try:
-                return float(s) if s else 0.0
-            except:
-                return 0.0
-
-        for i, row in data_rows.iterrows():
-            # Название статьи из Excel
-            c1 = str(row.iloc[1]).strip() if not pd.isna(row.iloc[1]) else ""
+        for _, row in data_rows.iterrows():
+            # 1. Более агрессивное получение названия статьи
+            # Проверяем колонку 0, если там пусто — берем 1, и наоборот
             c0 = str(row.iloc[0]).strip() if not pd.isna(row.iloc[0]) else ""
-            cat_name_text = c1 if (c1 and c1.lower() != 'nan') else c0
+            c1 = str(row.iloc[1]).strip() if not pd.isna(row.iloc[1]) else ""
 
-            if not cat_name_text or cat_name_text.lower() in ['nan', 'итого', 'total', 'факт', 'план']:
+            # Выбираем самое длинное/содержательное значение из первых двух колонок
+            raw_cat_name = c0 if len(c0) >= len(c1) else c1
+
+            # Очищаем от технических артефактов
+            if not raw_cat_name or raw_cat_name.lower() in ['nan', 'none', 'факт', 'план']:
                 continue
 
-            # --- КЛЮЧЕВОЙ МОМЕНТ: Находим объект Category в базе ---
-            # get_or_create вернет объект, если он есть, или создаст новый
-            category_obj, created = Category.objects.get_or_create(name=cat_name_text)
+            # 2. НОРМАЛИЗАЦИЯ (теперь учитываем "Чистую прибыль")
+            final_cat_name = normalize_category_name(raw_cat_name)
+
+            # УБИРАЕМ "итого" из фильтрации, если это важная статья
+            # Если строка называется просто "Итого" - скипаем,
+            # но если "Итого чистая прибыль" - оставляем.
+            if final_cat_name.lower() == 'итого':
+                continue
+
+            category_obj, _ = Category.objects.get_or_create(name=final_cat_name)
 
             for cfg in month_configs:
                 f_val = force_float(row.iloc[cfg['f']])
-                p_val = force_float(row.iloc[cfg['p']])
+                # Если во втором формате нет колонки плана, ставим 0
+                p_val = force_float(row.iloc[cfg['p']]) if cfg['p'] is not None else 0.0
 
                 if f_val == 0 and p_val == 0:
                     continue
@@ -98,60 +159,18 @@ def process_multi_pnl_file(file, entity, year):
                 to_create.append(PnLData(
                     entity=entity,
                     period=date(year, cfg['month'], 1),
-                    category=category_obj,  # Передаем ОБЪЕКТ, а не строку
+                    category=category_obj,
                     fact=f_val,
                     plan=p_val
                 ))
 
         if to_create:
             PnLData.objects.bulk_create(to_create)
-            print(f"УСПЕХ: Записано {len(to_create)} строк!")
+            print(f"УСПЕХ: Записано {len(to_create)} строк для {len(target_months)} мес.")
         else:
-            print("ВНИМАНИЕ: Данные не собраны.")
+            print("ВНИМАНИЕ: Данные для записи не найдены.")
 
     return len(target_months)
-
-
-@login_required
-def validate_file_type(file, expected_type):
-    try:
-        # Читаем первые 30 строк без заголовков
-        df = pd.read_excel(file, nrows=30, header=None)
-
-        # Превращаем в список строк, убирая пустые значения (nan)
-        flat_list = df.astype(str).values.flatten()
-        all_text = " ".join([str(x) for x in flat_list if str(x).lower() != 'nan']).lower()
-
-        # Убираем лишние пробелы и переносы
-        all_text = re.sub(r'\s+', ' ', all_text)
-
-        if expected_type == 'osv':
-            # В ОСВ обязательно должны быть эти 3 слова
-            if 'оборотно-сальдовая' not in all_text or 'счет' not in all_text:
-                return False, "Файл не распознан как ОСВ (не найдена шапка ведомости)."
-
-            # Проверка наличия колонок
-            if 'дебет' not in all_text and 'кредит' not in all_text:
-                return False, "В ОСВ не найдены колонки Дебет/Кредит."
-
-        elif expected_type == 'pnl':
-            # В ОПУ ищем характерные слова из вашего файла
-            # Проверяем по отдельности, так как они могут быть в разных ячейках
-            pnl_markers = ['сравнительный', 'анализ', 'фхд']
-            if not all(m in all_text for m in pnl_markers):
-                return False, "Файл не похож на ОПУ (не найдено 'Сравнительный анализ ФХД')."
-
-            # В вашем ОПУ 'план' и 'факт' — железные маркеры
-            if 'план' not in all_text or 'факт' not in all_text:
-                return False, "В ОПУ не найдены обязательные столбцы План/Факт."
-
-            # Защита от перепутывания
-            if 'оборотно-сальдовая' in all_text:
-                return False, "Это файл ОСВ, а вы загружаете его в поле ОПУ."
-
-        return True, ""
-    except Exception as e:
-        return False, f"Ошибка парсинга: {str(e)}"
 
 
 @login_required
@@ -201,6 +220,48 @@ def upload_financial_data(request):
         form = UploadFinanceForm()
 
     return render(request, 'analytics/upload.html', {'form': form})
+
+
+@login_required
+def validate_file_type(file, expected_type):
+    try:
+        # Читаем первые 30 строк без заголовков
+        df = pd.read_excel(file, nrows=30, header=None)
+
+        # Превращаем в список строк, убирая пустые значения (nan)
+        flat_list = df.astype(str).values.flatten()
+        all_text = " ".join([str(x) for x in flat_list if str(x).lower() != 'nan']).lower()
+
+        # Убираем лишние пробелы и переносы
+        all_text = re.sub(r'\s+', ' ', all_text)
+
+        if expected_type == 'osv':
+            # В ОСВ обязательно должны быть эти 3 слова
+            if 'оборотно-сальдовая' not in all_text or 'счет' not in all_text:
+                return False, "Файл не распознан как ОСВ (не найдена шапка ведомости)."
+
+            # Проверка наличия колонок
+            if 'дебет' not in all_text and 'кредит' not in all_text:
+                return False, "В ОСВ не найдены колонки Дебет/Кредит."
+
+        elif expected_type == 'pnl':
+            # В ОПУ ищем характерные слова из вашего файла
+            # Проверяем по отдельности, так как они могут быть в разных ячейках
+            pnl_markers = ['сравнительный', 'анализ', 'фхд']
+            if not all(m in all_text for m in pnl_markers):
+                return False, "Файл не похож на ОПУ (не найдено 'Сравнительный анализ ФХД')."
+
+            # В вашем ОПУ 'план' и 'факт' — железные маркеры
+            if 'план' not in all_text or 'факт' not in all_text:
+                return False, "В ОПУ не найдены обязательные столбцы План/Факт."
+
+            # Защита от перепутывания
+            if 'оборотно-сальдовая' in all_text:
+                return False, "Это файл ОСВ, а вы загружаете его в поле ОПУ."
+
+        return True, ""
+    except Exception as e:
+        return False, f"Ошибка парсинга: {str(e)}"
 
 
 class EntityListView(LoginRequiredMixin, ListView):
@@ -461,77 +522,86 @@ def consolidated_osv(request):
 
 @login_required
 def annual_analytics(request):
-    # 1. Получаем параметры из запроса
+    # 1. Сбор параметров
     selected_years = request.GET.getlist('years')
     if not selected_years:
-        # По умолчанию показываем текущий год
         selected_years = [str(date.today().year)]
     selected_years = [int(y) for y in selected_years]
 
     entity_id = request.GET.get('entity')
-    # Доступные годы для фильтра (от 2023 до следующего)
     available_years = range(2023, date.today().year + 2)
     entities = Entity.objects.all()
     months = range(1, 13)
 
-    # Словарь сопоставления (Ключ для кода : Имя в базе данных)
-    categories_map = {
-        "ИТОГО ПРОДАЖИ": "ИТОГО ПРОДАЖИ",
-        "ЧИСТАЯ ПРИБЫЛЬ": "ЧИСТАЯ ПРИБЫЛЬ",
-        "КОЛИЧЕСТВО СЛУШАТЕЛЕЙ": "Кол-во заявок на обучение / Number of enrolled students"
+    # --- СИСТЕМА СИНОНИМОВ (Максимально точная по вашим файлам) ---
+    synonyms_map = {
+        "КОЛИЧЕСТВО СЛУШАТЕЛЕЙ": [
+            "Кол-во заявок на обучение / Number of enrolled students",
+            "Количество слушателей / Number of students",
+            "Количество слушателей",
+            "Number of enrolled students"
+        ],
+        "ЧИСТАЯ ПРИБЫЛЬ": [
+            "ЧИСТАЯ ПРИБЫЛЬ / NET PROFIT:",  # Из файла Школа (с двоеточием)
+            "ЧИСТАЯ ПРИБЫЛЬ / NET PROFIT",  # Без двоеточия
+            "ОПЕРАЦИОННЫЙ ДОХОД ПО КОМПАНИИ / OPERATING INCOME",  # Из файла Истиклол
+            "Чистая прибыль",
+            "Net profit"
+        ],
+        "ИТОГО ПРОДАЖИ": [
+            "ИТОГО ПРОДАЖИ / Total sales", # Основной вариант
+            "ИТОГО ПРОДАЖИ / Total Sales", # Вариант с большой буквой
+            "ИТОГО ПРОДАЖИ / Total sales ", # С возможным пробелом в конце
+        ]
     }
 
-    target_categories = list(categories_map.keys())
+    target_categories = list(synonyms_map.keys())
 
-    # Базовый QuerySet с учетом выбранного филиала
-    historical_data = PnLData.objects.all()
+    # Фильтрация данных по филиалу
+    historical_data = PnLData.objects.select_related('category', 'entity')
     if entity_id:
         historical_data = historical_data.filter(entity_id=entity_id)
 
-    # --- ШАГ 1: РАСЧЕТ СЕЗОННОСТИ И БАЗОВОГО ТРЕНДА ---
+    # --- ШАГ 1: РАСЧЕТ СЕЗОННОСТИ ---
     seasonality_map = {}
     global_trends = {}
 
-    for cat_key, db_name in categories_map.items():
-        # Собираем данные по месяцам за все время для профиля сезонности
+    for cat_key, db_names in synonyms_map.items():
         m_vals = []
         for m in months:
+            # Ищем по полю name в связанной модели Category
             val = historical_data.filter(
                 period__month=m,
-                category__name__icontains=db_name
+                category__name__in=db_names
             ).aggregate(total=Sum('fact'))['total'] or 0
             m_vals.append(float(val))
 
-        # Считаем коэффициенты (отклонение каждого месяца от среднего)
         total_mean = np.mean(m_vals) if np.mean(m_vals) != 0 else 1
         seasonality_map[cat_key] = [v / total_mean for v in m_vals]
 
-        # База для прогноза: Среднемесячный факт за прошлый год (2025)
-        # Это исключает занижение из-за слабых старых данных
+        # База прогноза (предыдущий год)
         last_year = date.today().year - 1
         last_year_avg = historical_data.filter(
-            category__name__icontains=db_name,
+            category__name__in=db_names,
             period__year=last_year
         ).aggregate(avg=Sum('fact'))['avg']
 
         if last_year_avg:
             global_trends[cat_key] = float(last_year_avg) / 12
         else:
-            # Если 2025 пуст, берем последние 3 доступных месяца в базе
             fallback = historical_data.filter(
-                category__name__icontains=db_name
+                category__name__in=db_names
             ).exclude(fact=0).order_by('-period')[:3]
             global_trends[cat_key] = np.mean([float(x.fact) for x in fallback]) if fallback.exists() else 0
 
     # --- ШАГ 2: ФОРМИРОВАНИЕ ДАННЫХ ДЛЯ ВЫВОДА ---
     comparison_data = {}
     for year in selected_years:
-        # Структура: факт, план и прогноз для каждой категории
         comparison_data[year] = {
             cat: {'fact': [], 'plan': [], 'forecast': []} for cat in target_categories
         }
 
-        for cat_key, db_name in categories_map.items():
+        for cat_key, db_names in synonyms_map.items():
             monthly_facts = []
             monthly_plans = []
 
@@ -539,7 +609,7 @@ def annual_analytics(request):
                 p = date(year, m, 1)
                 res = historical_data.filter(
                     period=p,
-                    category__name__icontains=db_name
+                    category__name__in=db_names
                 ).aggregate(f_sum=Sum('fact'), p_sum=Sum('plan'))
 
                 monthly_facts.append(float(res['f_sum'] or 0))
@@ -548,41 +618,30 @@ def annual_analytics(request):
             comparison_data[year][cat_key]['fact'] = monthly_facts
             comparison_data[year][cat_key]['plan'] = monthly_plans
 
-            # Расчет текущей базы (current_avg) для этого года
+            # Прогнозная логика
             y_history = [v for v in monthly_facts if v != 0]
-
             if len(y_history) > 0:
-                # Если в году уже есть данные, берем их среднее (актуальный тренд)
-                if cat_key == "ЧИСТАЯ ПРИБЫЛЬ":
-                    current_avg = np.mean(y_history[-6:]) if len(y_history) >= 6 else np.mean(y_history)
-                else:
-                    current_avg = np.mean(y_history[-2:])
+                # Для прибыли берем более длинное окно тренда
+                window = 6 if cat_key == "ЧИСТАЯ ПРИБЫЛЬ" else 2
+                current_avg = np.mean(y_history[-window:])
             else:
-                # Если год пустой (будущий), берем нашу "планку" из 2025 года
                 current_avg = global_trends.get(cat_key, 0)
 
-            # Защита от NaN при пустых расчетах
             if np.isnan(current_avg): current_avg = 0
 
-            # Генерация прогнозной линии
             forecast_values = []
             for m in months:
-                # Если уже есть реальный факт за месяц, прогноз совпадает с ним
                 if monthly_facts[m - 1] != 0:
                     forecast_values.append(monthly_facts[m - 1])
                 else:
-                    # Умножаем актуальный тренд на коэффициент сезонности месяца
                     coeff = seasonality_map[cat_key][m - 1]
                     val = round(current_avg * coeff, 2)
-
-                    # Запрещаем отрицательные продажи и количество студентов
                     if cat_key != "ЧИСТАЯ ПРИБЫЛЬ":
                         val = max(0, val)
                     forecast_values.append(val)
 
             comparison_data[year][cat_key]['forecast'] = forecast_values
 
-    # 3. Рендеринг страницы
     context = {
         'selected_years': selected_years,
         'available_years': available_years,
@@ -590,8 +649,7 @@ def annual_analytics(request):
         'selected_entity_id': int(entity_id) if (entity_id and entity_id.isdigit()) else None,
         'comparison_data_json': json.dumps(comparison_data),
         'months_labels': json.dumps(
-            ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
-        )
+            ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"])
     }
     return render(request, 'analytics/annual_report.html', context)
 
